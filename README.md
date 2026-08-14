@@ -1,0 +1,61 @@
+# 🥒 cucumbero
+
+A focus-session blocker for Chrome. You pick a duration, it covers your time-sink
+sites with a black rectangle that says *"You know what you should be doing."*
+
+## Install
+
+1. `chrome://extensions`
+2. Turn on **Developer mode** (top right)
+3. **Load unpacked** → select this folder
+4. Pin it to the toolbar
+
+## Use
+
+Click the icon:
+
+- **Focus for** — 15 / 25 / 45 / 60 minutes, or type your own (1–720).
+- **Block field** — pre-filled with the domain of the tab you're on, so blocking
+  the site currently wasting your time is one click. Blocking `reddit.com` also
+  blocks `old.reddit.com` and every other subdomain.
+- **Block list** — expands; the `×` buttons work only when no session is running.
+- **Go** — starts the session. Every open, new, or navigated-to tab on a blocked
+  domain gets the overlay immediately.
+
+On the overlay:
+
+- **hold to stop focusing** — a genuine 5-second press-and-hold. No click-through.
+- **20-second break** — hides the overlay in *that tab only* so you can pause a
+  video or close a thing. A small pill in the corner counts you back down.
+
+When the timer runs out you get a system notification, and every live overlay
+flips to a green "Breathe. You can come back now." screen and fades away.
+
+## How it works
+
+| File | Role |
+| --- | --- |
+| `background.js` | Service worker. Owns all state, decides which tabs get covered. |
+| `overlay.js` | Injected on demand into blocked tabs only. Closed shadow DOM. |
+| `popup.html/css/js` | The popup. A dumb client of the worker. |
+
+Session state is a wall-clock `endsAt` timestamp in `chrome.storage.local` plus a
+`chrome.alarms` timer, so an MV3 worker eviction or a browser restart can't end
+your session early or strand an overlay on a page. A per-minute alarm re-sweeps
+every tab as a self-heal and keeps the toolbar badge honest.
+
+The overlay lives in a closed shadow root with inline `!important` styling on the
+host, and a `MutationObserver` puts it back if the page removes the node.
+
+## Known limits (deliberate)
+
+- **It's a speed bump, not a cage.** Anyone who opens devtools, uses incognito
+  (the extension isn't enabled there by default), or disables the extension gets
+  right past it. It's built to beat your reflexes, not your intent.
+- **Some pages can't be covered**: `chrome://*`, the Chrome Web Store, the PDF
+  viewer, and other extensions' pages. Chrome forbids injection there.
+- **A break follows the tab, not the page.** Start a break, navigate to a
+  *different* blocked site in the same tab, and you keep the remaining seconds.
+  That's the cost of "let me pause this video and get out."
+- **Audio keeps playing** behind the overlay on purpose — otherwise the break
+  button would have nothing to do.

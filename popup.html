@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>cucumbero</title>
+  </head>
+  <body>
+    <header>
+      <span class="logo">🥒</span>
+      <span class="wordmark">cucumbero</span>
+      <span class="state" id="state-chip"></span>
+    </header>
+
+    <!-- ------------------------------------------------------- idle ---- -->
+    <section id="view-idle" class="view">
+      <div class="label">Focus for</div>
+      <div class="chips" id="chips">
+        <button class="chip" data-min="15" type="button">15m</button>
+        <button class="chip" data-min="25" type="button">25m</button>
+        <button class="chip is-on" data-min="45" type="button">45m</button>
+        <button class="chip" data-min="60" type="button">60m</button>
+        <label class="chip custom">
+          <input id="custom-min" type="number" min="1" max="720" step="1" placeholder="··" />
+          <span>m</span>
+        </label>
+      </div>
+      <button id="go" class="primary" type="button">Go</button>
+    </section>
+
+    <!-- ----------------------------------------------------- active ---- -->
+    <section id="view-active" class="view" hidden>
+      <div class="clock" id="clock">--:--</div>
+      <div class="label center" id="active-sub">left · stay off the internet</div>
+      <button id="stop-hold" class="hold" type="button">
+        <span class="fill"></span>
+        <span class="label-text">hold to stop focusing</span>
+      </button>
+    </section>
+
+    <!-- ------------------------------------------------------- add ----- -->
+    <div class="row add">
+      <input id="site-input" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" />
+      <button id="add" class="secondary" type="button">Block</button>
+    </div>
+    <div class="status" id="status"></div>
+
+    <!-- ------------------------------------------------------ list ----- -->
+    <button id="list-toggle" class="disclosure" type="button" aria-expanded="false">
+      <span class="caret">▸</span>
+      <span>Block list</span>
+      <span class="count" id="list-count">0</span>
+    </button>
+    <div id="list-wrap" hidden>
+      <ul id="list"></ul>
+      <p class="hint" id="list-hint" hidden>Removing sites is disabled while you're focusing. That's the point.</p>
+      <p class="hint" id="list-empty" hidden>Nothing blocked yet. Add the site you're on.</p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
