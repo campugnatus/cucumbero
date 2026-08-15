@@ -16,6 +16,9 @@
 
   const HOLD_MS = 5000; // hold-to-stop duration
   const Z = '2147483647';
+  // Namespaced: the face goes into the page's own font set, so a plain "Nunito"
+  // would shadow the page's if it happens to use one.
+  const FONT_FAMILY = 'CucumberoNunito';
 
   let host = null;
   let root = null;
@@ -65,6 +68,23 @@
     return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   }
 
+  // Chrome ignores @font-face declared inside a shadow root and font matching is
+  // document-scoped, so the face has to be added to the page's own font set. A
+  // strict page CSP can still refuse the fetch — then the fallback stack stands
+  // in, which is why the digit cells exist.
+  function loadFont() {
+    if (window.__cucumberoFont || typeof FontFace !== 'function' || !document.fonts) return;
+    window.__cucumberoFont = true;
+    try {
+      const url = chrome.runtime.getURL('fonts/nunito-800.woff2');
+      const face = new FontFace(FONT_FAMILY, `url(${url})`, { weight: '800', display: 'block' });
+      face.load().then(
+        (loaded) => document.fonts.add(loaded),
+        () => {}
+      );
+    } catch {}
+  }
+
   function lockScroll(on) {
     const de = document.documentElement;
     if (!de) return;
@@ -81,8 +101,14 @@
 
   const CSS = `
     :host { all: initial; }
-    * { box-sizing: border-box; margin: 0; font-family: ui-sans-serif, system-ui, -apple-system,
+    * { box-sizing: border-box; margin: 0; }
+
+    /* Not on \`*\`: a universal font-family matches every element directly, which
+       beats inheritance, so the clock's per-digit spans could never pick up the
+       font set on their parent. Buttons don't inherit fonts on their own. */
+    .wrap, .pill { font-family: ui-sans-serif, system-ui, -apple-system,
         "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    button { font-family: inherit; }
 
     .wrap { position: fixed; inset: 0; z-index: ${Z}; }
 
@@ -106,10 +132,14 @@
     }
 
     .clock {
-      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-      font-size: clamp(46px, 11vw, 104px); font-weight: 600; line-height: 1;
-      letter-spacing: -0.03em; color: #7cc243; font-variant-numeric: tabular-nums;
+      font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
+      font-size: clamp(46px, 11vw, 104px); font-weight: 800; line-height: 1;
+      color: #7cc243;
     }
+    /* Nunito's digits share one advance (0.6em); the cells match it exactly and
+       keep the countdown from lurching if the font is blocked and we fall back. */
+    .clock .digit { display: inline-block; width: 0.6em; text-align: center; }
+    .clock .sep { display: inline-block; width: 0.28em; text-align: center; }
     .sub { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #7d8a78; }
 
     .actions { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 10px; }
@@ -167,6 +197,8 @@
 
     // Sweep up any host left behind by a previous, now-dead instance.
     document.querySelectorAll('[data-cucumbero]').forEach((n) => n.remove());
+
+    loadFont();
 
     host = document.createElement('div');
     host.setAttribute('data-cucumbero', '');
@@ -352,6 +384,20 @@
     // duplicate listener.
   }
 
+  // One span per character so each digit sits in a fixed cell — see the .clock
+  // rules. Rebuilt only when the string actually changes.
+  function paintClock(text) {
+    if (els.clock.dataset.value === text) return;
+    els.clock.dataset.value = text;
+    els.clock.textContent = '';
+    for (const ch of text) {
+      const cell = document.createElement('span');
+      cell.className = ch >= '0' && ch <= '9' ? 'digit' : 'sep';
+      cell.textContent = ch;
+      els.clock.appendChild(cell);
+    }
+  }
+
   function tick() {
     if (!host) return;
 
@@ -374,7 +420,7 @@
 
     if (mode === 'blocking') {
       const left = endsAt - Date.now();
-      els.clock.textContent = clock(left);
+      paintClock(clock(left));
       if (left <= 0 && !expiryReported) {
         expiryReported = true;
         els.sub.textContent = 'wrapping up…';

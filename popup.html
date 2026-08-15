@@ -14,7 +14,6 @@
 
     <!-- ------------------------------------------------------- idle ---- -->
     <section id="view-idle" class="view">
-      <div class="label">Focus for</div>
       <div class="stepper">
         <button id="minus" class="step" type="button" aria-label="15 minutes less">−</button>
         <label class="amount">
@@ -32,37 +31,37 @@
         </label>
         <button id="plus" class="step" type="button" aria-label="15 minutes more">+</button>
       </div>
-      <button id="go" class="primary" type="button">Go</button>
+      <button id="go" class="primary" type="button">Start session</button>
     </section>
 
     <!-- ----------------------------------------------------- active ---- -->
     <section id="view-active" class="view" hidden>
       <div class="clock" id="clock">--:--</div>
-      <div class="label center" id="active-sub">left · stay off the internet</div>
       <button id="stop-hold" class="hold" type="button">
         <span class="fill"></span>
         <span class="label-text">hold to stop focusing</span>
       </button>
     </section>
 
-    <!-- ------------------------------------------------------- add ----- -->
-    <div class="row add">
-      <input id="site-input" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" />
-      <button id="add" class="secondary" type="button">Block</button>
-    </div>
-    <div class="status" id="status"></div>
+    <section id="section-block-list">
 
-    <!-- ------------------------------------------------------ list ----- -->
-    <button id="list-toggle" class="disclosure" type="button" aria-expanded="false">
-      <span class="caret">▸</span>
-      <span>Block list</span>
-      <span class="count" id="list-count">0</span>
-    </button>
-    <div id="list-wrap" hidden>
-      <ul id="list"></ul>
-      <p class="hint" id="list-hint" hidden>Removing sites is disabled while you're focusing. That's the point.</p>
-      <p class="hint" id="list-empty" hidden>Nothing blocked yet. Add the site you're on.</p>
-    </div>
+      <!-- ------------------------------------------------------ list ----- -->
+      <button id="list-toggle" class="disclosure" type="button" aria-expanded="false">
+        <span class="caret">▸</span>
+        <span>Block list</span>
+        <span class="count" id="list-count">0</span>
+      </button>
+      <div id="list-wrap" hidden>
+        <ul id="list"></ul>
+        <p class="hint" id="list-empty" hidden>Nothing blocked yet. Add the site you're on.</p>
+      </div>
+      <!-- ------------------------------------------------------- add ----- -->
+      <div class="row add">
+        <input id="site-input" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" />
+        <button id="add" class="secondary" type="button">Block</button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
 
     <script src="popup.js"></script>
   </body>

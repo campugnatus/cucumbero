@@ -1,3 +1,21 @@
+/* Nunito, latin subset, bundled rather than pulled from Google so the popup
+   opens offline and makes no network request. SIL OFL 1.1 — fonts/OFL-Nunito.txt
+   700 for the wordmark and the duration input, 800 for the countdown. */
+@font-face {
+  font-family: Nunito;
+  src: url("fonts/nunito-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: Nunito;
+  src: url("fonts/nunito-800.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   /* Stops Chrome from dark-styling the inputs and scrollbars when the OS is
      in dark mode — this popup is light on purpose. */
@@ -5,6 +23,7 @@
 
   /* Neutral grays on purpose — the only colour in here is the cucumber. */
   --bg: #ebebed;
+  --sunk: #e1e1e1; /* the recessed block-list section */
   --panel: #ffffff;
   --line: #d4d4d8;
   --text: #1b1b1d;
@@ -12,34 +31,47 @@
   --faint: #78787e;
   /* Deep enough to carry white button text and to read on the gray. The
      overlay's brighter #7cc243 would wash out on a light background. */
-  --green: #3f7d18;
-  --green-dim: #6aab3a;
+  --green: #3d8a5c;
+  --green-dim: #568c6c;
   --red: #b23b23;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Deliberately NOT on `*`: a universal font-family matches every element
+   directly, which beats inheritance, so nested spans (the clock's digit cells)
+   could never pick up a font set on their parent. Form controls don't inherit
+   fonts on their own, hence the explicit rule below. */
 body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   width: 320px;
-  padding: 14px;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
 
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
+}
+
 header {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-bottom: 14px;
+  padding: 14px;
+  padding-bottom: 6px;
 }
 .logo { font-size: 15px; }
 .wordmark {
+  font-family: Nunito, ui-rounded, system-ui, sans-serif;
+  font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.16em;
   color: var(--dim);
@@ -54,22 +86,10 @@ header {
 }
 .state.on { color: var(--green); }
 
-.view { margin-bottom: 14px; }
-
-.label {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 8px;
-}
-.label.center { text-align: center; margin: 6px 0 14px; }
-
 /* ----------------------------------------------------------- stepper ---- */
 
 .stepper {
   display: flex;
-  gap: 6px;
   margin-bottom: 12px;
 }
 
@@ -85,7 +105,7 @@ header {
   transition: all 0.13s ease;
 }
 .step:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
-.step:active:not(:disabled) { background: rgba(63, 125, 24, 0.1); }
+.step:active:not(:disabled) { background: rgba(61, 138, 92, 0.1); }
 .step:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .amount {
@@ -95,27 +115,38 @@ header {
   justify-content: center;
   gap: 5px;
   padding: 8px 0;
-  border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--panel);
   cursor: text;
   transition: border-color 0.13s ease;
 }
-.amount:focus-within { border-color: var(--green-dim); }
+/* Focus lands on the whole control rather than one segment — tinting just the
+   middle box reads as broken now that the three are a single pill. */
+.stepper:focus-within #minus {
+  border-color: var(--green-dim);
+}
+.stepper:focus-within #plus {
+  border-color: var(--green-dim);
+  border-left-color: var(--line);
+}
+
+.stepper:focus-within .amount {
+  border-color: var(--green-dim);
+  border-left-color: var(--line);
+}
 .amount input {
   width: 62px;
   border: 0;
   background: transparent;
   color: var(--green);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: Nunito, ui-rounded, system-ui, sans-serif;
   font-size: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   text-align: right;
   padding: 0;
   outline: none;
 }
-.amount input::selection { background: rgba(63, 125, 24, 0.18); }
+.amount input::selection { background: rgba(61, 138, 92, 0.18); }
 .unit {
   font-size: 11px;
   letter-spacing: 0.12em;
@@ -123,13 +154,29 @@ header {
   color: var(--faint);
 }
 
+/* One joined pill: the ends round off and the segments share a single 1px
+   seam instead of butting two borders together. */
+#minus {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+
+#plus {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.step + .amount,
+.amount + .step {
+  margin-left: -1px;
+}
 /* ----------------------------------------------------------- buttons ---- */
 
 .primary {
   width: 100%;
   padding: 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--green);
   color: #fff;
   font-size: 15px;
@@ -143,7 +190,7 @@ header {
 
 .secondary {
   padding: 0 14px;
-  border-radius: 9px;
+  border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--dim);
@@ -158,23 +205,38 @@ header {
 /* ------------------------------------------------------------ active ---- */
 
 .clock {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 46px;
-  font-weight: 600;
+  font-family: Nunito, ui-rounded, system-ui, sans-serif;
+  font-size: 56px;
+  font-weight: 800;
   line-height: 1.05;
-  letter-spacing: -0.03em;
   text-align: center;
   color: var(--green);
-  font-variant-numeric: tabular-nums;
   margin-top: 4px;
+  margin-bottom: 14px;
 }
+
+/* Nunito's digits are all one width (0.6em), so these cells are set to that
+   exact advance and change nothing visually. They stay as insurance: if the
+   bundled font ever fails to load, the fallback's proportional digits would
+   otherwise make a centred countdown lurch on every tick. */
+.clock .digit {
+  display: inline-block;
+  width: 0.6em;
+  text-align: center;
+}
+.clock .sep {
+  display: inline-block;
+  width: 0.28em;
+  text-align: center;
+}
+
 
 .hold {
   position: relative;
   overflow: hidden;
   width: 100%;
   padding: 11px;
-  border-radius: 10px;
+  border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--dim);
@@ -190,7 +252,7 @@ header {
   position: absolute;
   inset: 0;
   width: 0%;
-  background: linear-gradient(90deg, rgba(63, 125, 24, 0.16), rgba(63, 125, 24, 0.36));
+  background: linear-gradient(90deg, rgba(61, 138, 92, 0.16), rgba(61, 138, 92, 0.36));
   transition: width 0.08s linear;
 }
 .hold.releasing .fill { transition: width 0.25s ease-out; }
@@ -203,7 +265,7 @@ header {
   flex: 1;
   min-width: 0;
   padding: 10px 11px;
-  border-radius: 9px;
+  border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
@@ -228,17 +290,17 @@ header {
   align-items: center;
   gap: 7px;
   width: 100%;
-  margin-top: 8px;
+  margin-bottom: 6px;
   padding: 8px 2px;
   border: 0;
   background: none;
   color: var(--dim);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: bold;
   cursor: pointer;
-  border-top: 1px solid var(--line);
 }
 .disclosure:hover { color: var(--text); }
-.caret { font-size: 9px; transition: transform 0.15s ease; display: inline-block; }
+.caret { font-size: 14px; transition: transform 0.15s ease; display: inline-block; }
 .disclosure[aria-expanded="true"] .caret { transform: rotate(90deg); }
 .count {
   margin-left: auto;
@@ -290,3 +352,16 @@ li button:disabled { opacity: 0.25; cursor: not-allowed; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #c7c7cd; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #b0b0b7; }
+
+#section-block-list {
+  border-top: 1px solid var(--line);
+  background-color: var(--sunk);
+  padding: 14px;
+  padding-top: 6px;
+}
+
+#view-active,
+#view-idle {
+  padding: 14px;
+  margin-bottom: 6px;
+}

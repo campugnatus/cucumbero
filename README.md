@@ -38,6 +38,7 @@ notification.
 | `background.js` | Service worker. Owns all state, decides which tabs get covered. |
 | `overlay.js` | Injected on demand into blocked tabs only. Closed shadow DOM. |
 | `popup.html/css/js` | The popup. A dumb client of the worker. |
+| `fonts/` | Nunito 700/800 (latin subset) for the wordmark, the duration field and both countdowns. Bundled, so nothing is fetched over the network and it works offline. SIL OFL 1.1, see `fonts/OFL-Nunito.txt`. |
 
 Session state is a wall-clock `endsAt` timestamp in `chrome.storage.local` plus a
 `chrome.alarms` timer, so an MV3 worker eviction or a browser restart can't end

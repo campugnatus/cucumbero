@@ -36,6 +36,9 @@ def build():
     for name in ("popup.css", "popup.js"):
         shutil.copy(ROOT / name, BUILD / name)
     shutil.copy(ROOT / "tools" / "preview-stub.js", BUILD / "stub.js")
+    # Without the bundled font the preview silently falls back to system sans,
+    # which is exactly the thing you'd be trying to look at.
+    shutil.copytree(ROOT / "fonts", BUILD / "fonts", dirs_exist_ok=True)
 
     html = (ROOT / "popup.html").read_text()
     if MARKER not in html:

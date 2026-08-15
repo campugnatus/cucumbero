@@ -11,7 +11,6 @@ const el = {
   viewIdle: $('view-idle'),
   viewActive: $('view-active'),
   clock: $('clock'),
-  activeSub: $('active-sub'),
   stop: $('stop-hold'),
   stateChip: $('state-chip'),
   input: $('site-input'),
@@ -21,7 +20,6 @@ const el = {
   listWrap: $('list-wrap'),
   list: $('list'),
   count: $('list-count'),
-  hint: $('list-hint'),
   empty: $('list-empty'),
 };
 
@@ -83,17 +81,32 @@ function render() {
     li.append(host, rm);
     el.list.appendChild(li);
   }
-  el.hint.hidden = !active || state.blocklist.length === 0;
+  // The "locked during a session" note is gone from the markup; the disabled
+  // × buttons carry a title attribute instead.
   el.empty.hidden = state.blocklist.length !== 0;
 
   syncInputAffordance();
   tick();
 }
 
+// One span per character so CSS can pin each digit to a fixed cell — see the
+// .clock rules. Rebuilt only when the string actually changes.
+function paintClock(text) {
+  if (el.clock.dataset.value === text) return;
+  el.clock.dataset.value = text;
+  el.clock.textContent = '';
+  for (const ch of text) {
+    const cell = document.createElement('span');
+    cell.className = ch >= '0' && ch <= '9' ? 'digit' : 'sep';
+    cell.textContent = ch;
+    el.clock.appendChild(cell);
+  }
+}
+
 function tick() {
   if (!state.session) return;
   const left = state.session.endsAt - Date.now();
-  el.clock.textContent = clock(left);
+  paintClock(clock(left));
   if (left <= 0) refresh();
 }
 
