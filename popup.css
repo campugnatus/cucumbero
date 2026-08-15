@@ -1,13 +1,20 @@
 :root {
-  --bg: #10140f;
-  --panel: #171c15;
-  --line: #262d23;
-  --text: #e9f0e4;
-  --dim: #8b9785;
-  --faint: #5d6858;
-  --green: #7cc243;
-  --green-dim: #59902f;
-  --red: #d9694f;
+  /* Stops Chrome from dark-styling the inputs and scrollbars when the OS is
+     in dark mode — this popup is light on purpose. */
+  color-scheme: light;
+
+  /* Neutral grays on purpose — the only colour in here is the cucumber. */
+  --bg: #ebebed;
+  --panel: #ffffff;
+  --line: #d4d4d8;
+  --text: #1b1b1d;
+  --dim: #5c5c60;
+  --faint: #78787e;
+  /* Deep enough to carry white button text and to read on the gray. The
+     overlay's brighter #7cc243 would wash out on a light background. */
+  --green: #3f7d18;
+  --green-dim: #6aab3a;
+  --red: #b23b23;
 }
 
 * {
@@ -78,7 +85,7 @@ header {
   transition: all 0.13s ease;
 }
 .step:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
-.step:active:not(:disabled) { background: rgba(124, 194, 67, 0.12); }
+.step:active:not(:disabled) { background: rgba(63, 125, 24, 0.1); }
 .step:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .amount {
@@ -108,7 +115,7 @@ header {
   padding: 0;
   outline: none;
 }
-.amount input::selection { background: rgba(124, 194, 67, 0.28); }
+.amount input::selection { background: rgba(63, 125, 24, 0.18); }
 .unit {
   font-size: 11px;
   letter-spacing: 0.12em;
@@ -124,7 +131,7 @@ header {
   border: 0;
   border-radius: 10px;
   background: var(--green);
-  color: #0e1a06;
+  color: #fff;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -183,7 +190,7 @@ header {
   position: absolute;
   inset: 0;
   width: 0%;
-  background: linear-gradient(90deg, rgba(124, 194, 67, 0.25), rgba(124, 194, 67, 0.5));
+  background: linear-gradient(90deg, rgba(63, 125, 24, 0.16), rgba(63, 125, 24, 0.36));
   transition: width 0.08s linear;
 }
 .hold.releasing .fill { transition: width 0.25s ease-out; }
@@ -270,7 +277,7 @@ li button {
   border-radius: 6px;
   cursor: pointer;
 }
-li button:hover:not(:disabled) { color: var(--red); background: rgba(217, 105, 79, 0.12); }
+li button:hover:not(:disabled) { color: var(--red); background: rgba(178, 59, 35, 0.1); }
 li button:disabled { opacity: 0.25; cursor: not-allowed; }
 
 .hint {
@@ -281,4 +288,5 @@ li button:disabled { opacity: 0.25; cursor: not-allowed; }
 }
 
 ::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-thumb { background: #2b3327; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #c7c7cd; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #b0b0b7; }

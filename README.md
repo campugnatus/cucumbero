@@ -47,6 +47,19 @@ every tab as a self-heal and keeps the toolbar badge honest.
 The overlay lives in a closed shadow root with inline `!important` styling on the
 host, and a `MutationObserver` puts it back if the page removes the node.
 
+## Working on it
+
+```sh
+python3 tools/preview.py --open   # the popup in a normal tab, no extension reload
+python3 tools/preview.py --shot   # ...or screenshot its three states
+python3 tools/make-icons.py       # regenerate the icons from the 🥒 glyph
+```
+
+`preview.py` serves the real `popup.html/css/js` and fakes only the `chrome.*`
+calls (`tools/preview-stub.js`), so it renders exactly what the extension does —
+which makes CSS work a page refresh instead of a reload-and-reopen loop. It
+builds into a temp dir; nothing is written back into the repo.
+
 ## Known limits (deliberate)
 
 - **It's a speed bump, not a cage.** Anyone who opens devtools, uses incognito
