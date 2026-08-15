@@ -199,13 +199,12 @@ header {
 #site-input::placeholder { color: var(--faint); }
 
 .status {
-  min-height: 15px;
   margin: 6px 2px 0;
   font-size: 11.5px;
-  color: var(--faint);
+  line-height: 1.35;
+  color: var(--red);
 }
-.status.ok { color: var(--green); }
-.status.err { color: var(--red); }
+.status:empty { display: none; }
 
 /* -------------------------------------------------------------- list ---- */
 

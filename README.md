@@ -28,8 +28,8 @@ On the overlay:
 - **20-second break** — hides the overlay in *that tab only* so you can pause a
   video or close a thing. A small pill in the corner counts you back down.
 
-When the timer runs out you get a system notification, and every live overlay
-flips to a green "Breathe. You can come back now." screen and fades away.
+When the timer runs out every live overlay just fades away, and you get a system
+notification.
 
 ## How it works
 

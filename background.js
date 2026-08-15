@@ -111,19 +111,21 @@ async function endSession(reason) {
   const session = await readSession();
   if (!session) return null;
 
-  await chrome.storage.local.set({ session: null, lastEnded: { at: Date.now(), reason, durationMs: session.durationMs } });
+  await chrome.storage.local.set({ session: null });
   await chrome.storage.session.set({ breaks: {} });
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
   await paintBadge(null);
 
-  await broadcast({ type: reason === 'finished' ? 'CUCUMBERO_BREATHE' : 'CUCUMBERO_DISMISS' });
+  await broadcast({ type: reason === 'finished' ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
 
   if (reason === 'finished') {
     const minutes = Math.round(session.durationMs / 60000);
     chrome.notifications.create('cucumbero:done:' + session.endsAt, {
       type: 'basic',
-      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      // The notification API reserves the icon slot whether or not you fill it,
+      // so fill it: the 🥒 glyph on transparency, no plate behind it.
+      iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
       title: 'Breathe. 🥒',
       message: `${minutes} minute${minutes === 1 ? '' : 's'} of focus, done. The internet survived without you.`,
       priority: 2,
@@ -216,29 +218,34 @@ async function paintBadge(session) {
   await chrome.action.setBadgeText({ text: mins >= 60 ? Math.floor(mins / 60) + 'h' : String(mins) });
 }
 
+// ------------------------------------------------------------- bootstrap ----
+
+// Runs on every worker start: install, update, extension reload, browser
+// launch, and every wake from eviction. Reloading the extension kills the
+// overlays already on people's tabs (they self-destruct once their context is
+// invalid), so a live session has to put them straight back.
+async function bootstrap(resetBreaks) {
+  if (resetBreaks) await chrome.storage.session.set({ breaks: {} });
+  const session = await currentSession();
+  await paintBadge(session);
+  if (!sessionIsLive(session)) return;
+
+  if (!(await chrome.alarms.get(ALARM_END))) chrome.alarms.create(ALARM_END, { when: session.endsAt });
+  if (!(await chrome.alarms.get(ALARM_TICK))) chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
+
+  // Throttled: a worker can wake many times a minute during normal browsing,
+  // and a sweep touches every open tab.
+  const { lastSweep = 0 } = await chrome.storage.session.get('lastSweep');
+  if (Date.now() - lastSweep < 15_000) return;
+  await chrome.storage.session.set({ lastSweep: Date.now() });
+  await sweepAllTabs();
+}
+
 // ---------------------------------------------------------------- events ----
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.session.set({ breaks: {} });
-  const session = await currentSession();
-  await paintBadge(session);
-  if (sessionIsLive(session)) {
-    chrome.alarms.create(ALARM_END, { when: session.endsAt });
-    chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
-    await sweepAllTabs();
-  }
-});
-
-chrome.runtime.onStartup.addListener(async () => {
-  await chrome.storage.session.set({ breaks: {} });
-  const session = await currentSession();
-  await paintBadge(session);
-  if (sessionIsLive(session)) {
-    chrome.alarms.create(ALARM_END, { when: session.endsAt });
-    chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
-    await sweepAllTabs();
-  }
-});
+chrome.runtime.onInstalled.addListener(() => bootstrap(true));
+chrome.runtime.onStartup.addListener(() => bootstrap(true));
+bootstrap(false);
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_END) {
@@ -271,8 +278,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 const handlers = {
   async GET_STATE() {
     const session = await currentSession();
-    const { lastEnded = null } = await chrome.storage.local.get('lastEnded');
-    return { session: sessionIsLive(session) ? session : null, blocklist: await readList(), lastEnded };
+    return { session: sessionIsLive(session) ? session : null, blocklist: await readList() };
   },
 
   async START({ durationMs }) {

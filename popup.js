@@ -24,7 +24,7 @@ const el = {
   empty: $('list-empty'),
 };
 
-let state = { session: null, blocklist: [], lastEnded: null };
+let state = { session: null, blocklist: [] };
 let ticker = null;
 
 const send = (type, payload = {}) =>
@@ -44,9 +44,10 @@ function clock(ms) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-function say(text, kind = '') {
+// Errors only. Anything that worked speaks for itself in the UI; pass '' to
+// clear a stale complaint once the user has fixed it.
+function say(text) {
   el.status.textContent = text;
-  el.status.className = 'status' + (kind ? ' ' + kind : '');
 }
 
 // ---------------------------------------------------------------- render ----
@@ -73,9 +74,9 @@ function render() {
     rm.disabled = active;
     rm.addEventListener('click', async () => {
       const res = await send('REMOVE_SITE', { domain });
-      if (res.error) return say(res.error, 'err');
+      if (res.error) return say(res.error);
       state.blocklist = res.blocklist;
-      say(`Removed ${domain}.`);
+      say('');
       render();
     });
     li.append(host, rm);
@@ -102,9 +103,6 @@ async function refresh() {
   if (!state.session && ticker) {
     clearInterval(ticker);
     ticker = null;
-  }
-  if (!state.session && state.lastEnded && Date.now() - state.lastEnded.at < 90_000) {
-    say(state.lastEnded.reason === 'finished' ? 'Session complete. You can breathe now. 🥒' : 'Session stopped.', 'ok');
   }
 }
 
@@ -134,14 +132,14 @@ el.custom.addEventListener('input', () => {
 
 el.go.addEventListener('click', async () => {
   if (!state.blocklist.length) {
-    say('Add at least one site first, or this does nothing.', 'err');
+    say('Add at least one site first, or this does nothing.');
     el.input.focus();
     return;
   }
   const minutes = selectedMinutes();
   const res = await send('START', { durationMs: minutes * 60_000 });
-  if (res.error) return say(res.error, 'err');
-  say(`${minutes} minutes. Go.`, 'ok');
+  if (res.error) return say(res.error);
+  say('');
   await refresh();
 });
 
@@ -186,7 +184,6 @@ el.custom.addEventListener('keydown', (e) => {
         await send('STOP');
         reset();
         await refresh();
-        say('Session stopped. Was it worth it?');
         return;
       }
       raf = requestAnimationFrame(step);
@@ -211,11 +208,11 @@ el.input.addEventListener('input', syncInputAffordance);
 
 async function addSite() {
   const raw = el.input.value.trim();
-  if (!raw) return say('Type a domain first.', 'err');
+  if (!raw) return say('Type a domain first.');
   const res = await send('ADD_SITE', { domain: raw });
-  if (res.error) return say(res.error, 'err');
+  if (res.error) return say(res.error);
   state.blocklist = res.blocklist;
-  say(res.already ? `${res.domain} was already on the list.` : `Blocking ${res.domain}.`, res.already ? '' : 'ok');
+  say('');
   el.input.value = res.domain;
   render();
 }

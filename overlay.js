@@ -5,7 +5,14 @@
 // and all state arrives by message so the worker stays the source of truth.
 
 (() => {
-  if (window.__cucumbero) return;
+  // An extension reload/update invalidates the chrome.* context of any overlay
+  // already on the page: its message listener goes deaf and it can never be
+  // told to go away. So don't just bail when one exists — check it's still
+  // wired to a live extension, and evict it if it isn't.
+  if (window.__cucumbero) {
+    if (window.__cucumbero.alive?.()) return; // healthy instance owns this document
+    window.__cucumbero.destroy?.();
+  }
 
   const HOLD_MS = 5000; // hold-to-stop duration
   const Z = '2147483647';
@@ -16,7 +23,7 @@
   let endsAt = 0;
   let breakEndsAt = 0;
   let breakMs = 20000;
-  let mode = 'hidden'; // hidden | blocking | break | breathe
+  let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let holdRaf = null;
   let holdStart = 0;
@@ -25,6 +32,17 @@
   let observer = null;
 
   // ------------------------------------------------------------- helpers ----
+
+  // False once the extension has been reloaded, updated, or disabled out from
+  // under this content script. An overlay that can't be reached must not be a
+  // permanent one — it removes itself.
+  const contextAlive = () => {
+    try {
+      return !!(chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  };
 
   const send = (type, payload = {}) =>
     new Promise((resolve) => {
@@ -134,21 +152,21 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.35);
     }
 
-    /* breathe */
-    .wrap.breathe .veil { background: rgba(8, 26, 10, 0.92); }
-    .wrap.breathe h1 { color: #cdeab6; }
-    .wrap.breathe .clock { font-size: clamp(52px, 12vw, 118px); }
-    .wrap { transition: opacity .6s ease; }
+    .wrap { transition: opacity 1.6s ease; }
     .wrap.fade { opacity: 0; }
 
     @media (prefers-reduced-motion: reduce) {
-      .wrap, .hold .fill { transition: none; }
+      /* the fade stays — cutting it would just freeze the overlay, then blink */
+      .hold .fill { transition: none; }
     }
   `;
 
   function build() {
     const parent = document.documentElement || document.body;
     if (!parent) return false;
+
+    // Sweep up any host left behind by a previous, now-dead instance.
+    document.querySelectorAll('[data-cucumbero]').forEach((n) => n.remove());
 
     host = document.createElement('div');
     host.setAttribute('data-cucumbero', '');
@@ -300,11 +318,9 @@
       els.pill.style.display = 'none';
       if (next === 'blocking') {
         lockScroll(true);
-        els.wrap.classList.remove('breathe', 'fade');
-        // Undo anything breathe() changed, in case a new session starts on top.
-        els.title.textContent = 'You know what you should be doing.';
+        els.wrap.classList.remove('fade');
+        // Reset anything the tail end of a previous session left behind.
         els.sub.textContent = 'left in this session';
-        els.panel.querySelector('.actions').style.display = '';
         els.holdFill.style.width = '0%';
         els.holdLabel.textContent = 'hold to stop focusing';
         // A fullscreen video sits in the top layer, above any z-index we can set.
@@ -339,6 +355,12 @@
   function tick() {
     if (!host) return;
 
+    // Orphaned by an extension reload — nothing can control us any more.
+    if (!contextAlive()) {
+      teardown();
+      return;
+    }
+
     if (mode === 'break') {
       const left = breakEndsAt - Date.now();
       if (left <= 0) {
@@ -366,23 +388,23 @@
     ticker = setInterval(tick, 250);
   }
 
-  function breathe() {
+  // Timer's up. No fanfare — just get out of the way.
+  function fadeOut() {
     if (!host) return;
-    setMode('blocking');
-    els.wrap.classList.add('breathe');
-    els.title.textContent = 'Breathe. You can come back now.';
-    els.clock.textContent = '🥒';
-    els.sub.textContent = 'session complete';
-    els.panel.querySelector('.actions').style.display = 'none';
-    mode = 'breathe';
+    if (ticker) {
+      clearInterval(ticker);
+      ticker = null;
+    }
     lockScroll(false);
-    const close = () => teardown();
-    els.wrap.addEventListener('click', close, { once: true });
-    setTimeout(() => {
-      if (mode !== 'breathe') return;
-      els.wrap.classList.add('fade');
-      setTimeout(() => mode === 'breathe' && teardown(), 700);
-    }, 4000);
+    els.pill.style.display = 'none';
+    if (mode === 'break') {
+      teardown(); // nothing was on screen to fade
+      return;
+    }
+    mode = 'fading';
+    host.style.setProperty('pointer-events', 'none', 'important');
+    els.wrap.classList.add('fade');
+    setTimeout(teardown, 1750); // must outlast the CSS transition
   }
 
   // ------------------------------------------------------------ messaging ----
@@ -407,13 +429,13 @@
       startTicker();
     } else if (msg.type === 'CUCUMBERO_DISMISS') {
       if (host) teardown();
-    } else if (msg.type === 'CUCUMBERO_BREATHE') {
-      if (host) breathe();
+    } else if (msg.type === 'CUCUMBERO_FINISH') {
+      if (host) fadeOut();
     }
 
     sendResponse({ ok: true });
     return false;
   });
 
-  window.__cucumbero = { version: 1 };
+  window.__cucumbero = { version: 2, alive: contextAlive, destroy: teardown };
 })();
