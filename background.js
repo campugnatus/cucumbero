@@ -106,6 +106,25 @@ async function startSession(durationMs) {
   return session;
 }
 
+// The title already says the session finished, so these only have to carry the
+// tone. Kept short — notification bodies get clipped at two lines.
+const DONE_LINES = [
+  'You can breathe now.',
+  'Stay fresh. As cucumbers do.',
+  'Was it productive? Was it?',
+  'Take a break. Maybe snack on a cucumber.',
+  'The internet survived without you.',
+];
+
+// Random, but never the same line twice running.
+async function pickLine() {
+  const { lastLine = -1 } = await chrome.storage.session.get('lastLine');
+  const pool = DONE_LINES.map((_, i) => i).filter((i) => i !== lastLine);
+  const next = pool[Math.floor(Math.random() * pool.length)];
+  await chrome.storage.session.set({ lastLine: next });
+  return DONE_LINES[next];
+}
+
 // reason: 'stopped' (user gave up) | 'finished' (timer ran out)
 async function endSession(reason) {
   const session = await readSession();
@@ -126,8 +145,8 @@ async function endSession(reason) {
       // The notification API reserves the icon slot whether or not you fill it,
       // so fill it: the 🥒 glyph on transparency, no plate behind it.
       iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
-      title: 'Breathe. 🥒',
-      message: `${minutes} minute${minutes === 1 ? '' : 's'} of focus, done. The internet survived without you.`,
+      title: `Your ${minutes}-minute session has finished`,
+      message: await pickLine(),
       priority: 2,
     });
   }
