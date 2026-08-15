@@ -4,8 +4,9 @@ const HOLD_MS = 5000;
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  chips: $('chips'),
-  custom: $('custom-min'),
+  minutes: $('minutes'),
+  minus: $('minus'),
+  plus: $('plus'),
   go: $('go'),
   viewIdle: $('view-idle'),
   viewActive: $('view-active'),
@@ -108,26 +109,59 @@ async function refresh() {
 
 // ------------------------------------------------------------- duration ----
 
-function selectedMinutes() {
-  const custom = Number(el.custom.value);
-  if (custom > 0) return Math.min(720, Math.max(1, Math.round(custom)));
-  const on = el.chips.querySelector('.chip.is-on');
-  return on ? Number(on.dataset.min) : 45;
+const STEP = 15; // the +/- buttons work in quarter hours
+const DEFAULT_MIN = 45;
+const MIN_TYPED = 1; // you can type a 1-minute session; the buttons won't go there
+const MAX_MIN = 720;
+
+function typedMinutes() {
+  const n = parseInt(el.minutes.value, 10);
+  return Number.isFinite(n) ? n : NaN;
 }
 
-el.chips.addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip[data-min]');
-  if (!chip) return;
-  el.chips.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-on'));
-  chip.classList.add('is-on');
-  el.custom.value = '';
-});
+// Normalizes whatever is in the box into a number we're willing to run with.
+function commitMinutes() {
+  const n = typedMinutes();
+  const v = Number.isFinite(n) ? Math.min(MAX_MIN, Math.max(MIN_TYPED, n)) : DEFAULT_MIN;
+  el.minutes.value = String(v);
+  syncStepper();
+  return v;
+}
 
-el.custom.addEventListener('input', () => {
-  const has = Number(el.custom.value) > 0;
-  el.chips.querySelectorAll('.chip[data-min]').forEach((c) => c.classList.remove('is-on'));
-  el.custom.closest('.chip').classList.toggle('is-on', has);
-  if (!has) el.chips.querySelector('.chip[data-min="45"]').classList.add('is-on');
+function syncStepper() {
+  const n = typedMinutes();
+  const v = Number.isFinite(n) ? n : DEFAULT_MIN;
+  el.minus.disabled = v <= STEP;
+  el.plus.disabled = v >= MAX_MIN;
+}
+
+// Snaps to the 15-minute grid rather than blindly adding: from 20, "+" gives
+// 30, not 35.
+function stepBy(dir) {
+  const n = typedMinutes();
+  const base = Number.isFinite(n) ? n : DEFAULT_MIN;
+  if (dir < 0 && base <= STEP) return;
+  const next =
+    dir > 0 ? Math.floor(base / STEP) * STEP + STEP : Math.ceil(base / STEP) * STEP - STEP;
+  el.minutes.value = String(Math.min(MAX_MIN, Math.max(STEP, next)));
+  syncStepper();
+  el.minutes.focus();
+  el.minutes.select();
+}
+
+el.minus.addEventListener('click', () => stepBy(-1));
+el.plus.addEventListener('click', () => stepBy(1));
+
+el.minutes.addEventListener('input', () => {
+  const digits = el.minutes.value.replace(/\D+/g, '').slice(0, 3);
+  if (digits !== el.minutes.value) el.minutes.value = digits;
+  syncStepper();
+});
+el.minutes.addEventListener('blur', commitMinutes);
+el.minutes.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') el.go.click();
+  else if (e.key === 'ArrowUp') (e.preventDefault(), stepBy(1));
+  else if (e.key === 'ArrowDown') (e.preventDefault(), stepBy(-1));
 });
 
 el.go.addEventListener('click', async () => {
@@ -136,15 +170,11 @@ el.go.addEventListener('click', async () => {
     el.input.focus();
     return;
   }
-  const minutes = selectedMinutes();
+  const minutes = commitMinutes();
   const res = await send('START', { durationMs: minutes * 60_000 });
   if (res.error) return say(res.error);
   say('');
   await refresh();
-});
-
-el.custom.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') el.go.click();
 });
 
 // ---------------------------------------------------------- hold to stop ----
@@ -249,8 +279,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
     /* chrome://, new tab, etc. — leave the field empty */
   }
   syncInputAffordance();
+  syncStepper();
 
-  if (state.blocklist.length && !state.session) {
-    el.toggle.setAttribute('aria-expanded', 'false');
+  // Open with the duration selected so you can type over it and hit Enter.
+  // Only when idle — during a session there's nothing to type there, and the
+  // site field is pre-filled with something we don't want clobbered.
+  if (!state.session) {
+    el.minutes.focus();
+    el.minutes.select();
   }
 })();

@@ -58,55 +58,63 @@ header {
 }
 .label.center { text-align: center; margin: 6px 0 14px; }
 
-/* ------------------------------------------------------------- chips ---- */
+/* ----------------------------------------------------------- stepper ---- */
 
-.chips {
+.stepper {
   display: flex;
   gap: 6px;
   margin-bottom: 12px;
 }
-.chip {
-  flex: 1;
-  padding: 9px 0;
+
+.step {
+  width: 46px;
   border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--dim);
-  font-size: 13px;
-  font-weight: 550;
+  font-size: 19px;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.13s ease;
 }
-.chip:hover { border-color: #38412f; color: var(--text); }
-.chip.is-on {
-  background: rgba(124, 194, 67, 0.14);
-  border-color: var(--green);
-  color: var(--green);
-}
-.chip.custom {
+.step:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
+.step:active:not(:disabled) { background: rgba(124, 194, 67, 0.12); }
+.step:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.amount {
+  flex: 1;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
-  gap: 1px;
-  padding: 0 4px;
-  font-size: 12px;
-  max-width: 54px;
+  gap: 5px;
+  padding: 8px 0;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: text;
+  transition: border-color 0.13s ease;
 }
-.chip.custom input {
-  width: 26px;
+.amount:focus-within { border-color: var(--green-dim); }
+.amount input {
+  width: 62px;
   border: 0;
   background: transparent;
-  color: inherit;
-  font-size: 13px;
-  font-weight: 550;
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   text-align: right;
-  padding: 9px 0;
+  padding: 0;
   outline: none;
-  -moz-appearance: textfield;
 }
-.chip.custom input::-webkit-outer-spin-button,
-.chip.custom input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.chip.custom input::placeholder { color: var(--faint); }
+.amount input::selection { background: rgba(124, 194, 67, 0.28); }
+.unit {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
 
 /* ----------------------------------------------------------- buttons ---- */
 

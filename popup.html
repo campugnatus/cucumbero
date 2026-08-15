@@ -15,15 +15,22 @@
     <!-- ------------------------------------------------------- idle ---- -->
     <section id="view-idle" class="view">
       <div class="label">Focus for</div>
-      <div class="chips" id="chips">
-        <button class="chip" data-min="15" type="button">15m</button>
-        <button class="chip" data-min="25" type="button">25m</button>
-        <button class="chip is-on" data-min="45" type="button">45m</button>
-        <button class="chip" data-min="60" type="button">60m</button>
-        <label class="chip custom">
-          <input id="custom-min" type="number" min="1" max="720" step="1" placeholder="··" />
-          <span>m</span>
+      <div class="stepper">
+        <button id="minus" class="step" type="button" aria-label="15 minutes less">−</button>
+        <label class="amount">
+          <input
+            id="minutes"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Minutes"
+            value="45"
+            autofocus
+          />
+          <span class="unit">min</span>
         </label>
+        <button id="plus" class="step" type="button" aria-label="15 minutes more">+</button>
       </div>
       <button id="go" class="primary" type="button">Go</button>
     </section>
