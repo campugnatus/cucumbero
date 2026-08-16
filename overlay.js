@@ -20,7 +20,14 @@
   // would shadow the page's if it happens to use one.
   const FONT_FAMILY = 'CucumberoNunito';
   const HOLD_LABEL = 'hold to abort the session';
-  const COOLDOWN_HINT = 'One break a minute';
+  // Dial geometry. The stroke straddles the radius, so a stroke-width of twice
+  // DIAL_R reaches the centre and makes it a solid pie; less than that leaves a
+  // hole, more spills past the viewBox. DIAL_CIRCUMFERENCE must stay in step
+  // with DIAL_R, since it is the dash length that makes the sector work.
+  const DIAL_R = 12;
+  const DIAL_STROKE = 24;
+  const DIAL_CIRCUMFERENCE = (2 * Math.PI * DIAL_R).toFixed(3);
+  const COOLDOWN_HINT = 'Cooldown';
 
   let host = null;
   let root = null;
@@ -29,6 +36,7 @@
   let breakEndsAt = 0;
   let breakMs = 10000;
   let breakReadyAt = 0; // session-wide: when another break may be taken
+  let cooldownMs = 0; // how long that wait is, so the dial knows its full sweep
   let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let holdRaf = null;
@@ -169,9 +177,26 @@
     .hold .label { position: relative; }
     .hold.armed { border-color: rgba(124,194,67,0.65); color: #f3f7f0; }
 
-    .brk { border-color: transparent; background: transparent; color: #6f7c6b; font-size: 13px; min-width: 0; }
+    .brk {
+      display: inline-flex; align-items: center; gap: 8px;
+      border-color: transparent; background: transparent; color: #6f7c6b;
+      font-size: 13px; min-width: 0;
+    }
     .brk:hover:not([aria-disabled="true"]) { background: rgba(233,240,228,0.07); color: #cfd8ca; }
     .brk[aria-disabled="true"] { color: #4c5849; cursor: default; }
+
+    /* Cooldown dial: a ring that unwinds as the wait passes. The sector is cut
+       with stroke-dasharray rather than an arc path, so one number drives it and
+       there's no angle maths. dasharray must equal the circumference of the
+       stroked circle (DIAL_CIRCUMFERENCE tracks DIAL_R). The stroke straddles
+       the radius, so a wide one spills past the viewBox — hence overflow. */
+    .dial { display: none; width: 13px; height: 13px; flex: none; overflow: visible; margin-right: 4px; }
+    .brk[aria-disabled="true"] .dial { display: block; }
+    .dial-fill {
+      fill: none; stroke: currentColor; stroke-width: ${DIAL_STROKE};
+      stroke-dasharray: ${DIAL_CIRCUMFERENCE};
+      transition: stroke-dashoffset .25s linear;
+    }
 
     .brand {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
@@ -228,7 +253,13 @@
       '<button class="hold" type="button"><span class="fill"></span><span class="label">' +
       HOLD_LABEL +
       '</span></button>' +
-      '<button class="brk" type="button"></button>' +
+      '<button class="brk" type="button">' +
+      '<svg class="dial" viewBox="0 0 32 32" aria-hidden="true">' +
+      // rotated so the ring opens at 12 o'clock rather than 3
+      `<circle class="dial-fill" cx="16" cy="16" r="${DIAL_R}" transform="rotate(-90 16 16)"></circle>` +
+      '</svg>' +
+      '<span class="brk-label"></span>' +
+      '</button>' +
       '</div>' +
       '<div class="brand">🥒 cucumbero</div>' +
       '</div>';
@@ -251,6 +282,8 @@
       holdFill: wrap.querySelector('.fill'),
       holdLabel: wrap.querySelector('.label'),
       brk: wrap.querySelector('.brk'),
+      brkLabel: wrap.querySelector('.brk-label'),
+      brkDial: wrap.querySelector('.dial-fill'),
     };
     els.title.textContent = 'You know what you should be doing...';
 
@@ -338,20 +371,32 @@
     }
     breakEndsAt = res.breakUntil || Date.now() + breakMs;
     breakReadyAt = res.breakReadyAt || breakReadyAt;
+    cooldownMs = res.cooldownMs || cooldownMs;
     setMode('break');
   }
 
-  // The label never changes — a visible countdown would just invite you to sit
-  // and wait for it. On cooldown the button goes inert and explains itself on
-  // hover. aria-disabled rather than the disabled property, because a disabled
-  // button gets no mouse events and so never shows its tooltip; takeBreak()
-  // does the actual refusing.
+  // The label never changes — spelling out the remaining seconds would invite
+  // you to sit and wait for them. On cooldown the button goes inert, fills a
+  // dial, and explains itself on hover. aria-disabled rather than the disabled
+  // property, because a disabled button gets no mouse events and so never shows
+  // its tooltip; takeBreak() does the actual refusing.
   function syncBreak() {
     if (!els.brk) return;
-    const cooling = Date.now() < breakReadyAt;
+    const left = breakReadyAt - Date.now();
+    const cooling = left > 0;
+
+    // The dial has to move on every tick, so it sits outside the flip guard.
+    // It starts whole and unwinds: what's left of the ring is what's left of
+    // the wait. The offset is negative so the ring is eaten from its start
+    // rather than its end, which sweeps the gap clockwise from 12 o'clock.
+    if (cooling && cooldownMs > 0) {
+      const spent = Math.min(1, Math.max(0, 1 - left / cooldownMs));
+      els.brkDial.setAttribute('stroke-dashoffset', (-DIAL_CIRCUMFERENCE * spent).toFixed(3));
+    }
+
     if (els.brk.dataset.cooling === String(cooling)) return;
     els.brk.dataset.cooling = String(cooling);
-    els.brk.textContent = `${Math.round(breakMs / 1000)}-second break`;
+    els.brkLabel.textContent = `${Math.round(breakMs / 1000)}-second break`;
     els.brk.setAttribute('aria-disabled', String(cooling));
     els.brk.title = cooling ? COOLDOWN_HINT : '';
   }
@@ -498,6 +543,7 @@
       endsAt = msg.endsAt;
       breakMs = msg.breakMs || breakMs;
       breakReadyAt = msg.breakReadyAt || 0;
+      cooldownMs = msg.cooldownMs || cooldownMs;
       expiryReported = false;
       if (msg.breakUntil && msg.breakUntil > Date.now()) {
         breakEndsAt = msg.breakUntil;

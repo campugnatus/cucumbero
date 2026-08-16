@@ -194,6 +194,7 @@ async function showOverlay(tabId, session, resumeBreakUntil) {
     breakUntil: resumeBreakUntil || 0,
     breakMs: BREAK_MS,
     breakReadyAt: await breakReadyAt(),
+    cooldownMs: BREAK_COOLDOWN_MS,
   };
   if (await tellTab(tabId, message)) return;
   try {
@@ -354,12 +355,12 @@ const handlers = {
     if (tabId == null) return { error: 'no tab' };
     const now = Date.now();
     const readyAt = await breakReadyAt();
-    if (now < readyAt) return { denied: true, breakReadyAt: readyAt };
+    if (now < readyAt) return { denied: true, breakReadyAt: readyAt, cooldownMs: BREAK_COOLDOWN_MS };
 
     const until = now + BREAK_MS;
     await setBreak(tabId, until);
     await chrome.storage.session.set({ nextBreakAt: until + BREAK_COOLDOWN_MS });
-    return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS };
+    return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS, cooldownMs: BREAK_COOLDOWN_MS };
   },
 
   async END_BREAK(_payload, sender) {
