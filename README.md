@@ -14,7 +14,10 @@ sites with a black rectangle that says *"You know what you should be doing."*
 
 Click the icon:
 
-- **Focus for** — 15 / 25 / 45 / 60 minutes, or type your own (1–720).
+- **Duration** — type a number of minutes (1–720), or use the −/+ buttons, which
+  step in quarter hours and snap to the grid. The field opens focused and
+  selected, so typing a number and pressing Enter is the whole interaction. It
+  remembers the last length you started and opens on that; 45 until then.
 - **Block field** — pre-filled with the domain of the tab you're on, so blocking
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.

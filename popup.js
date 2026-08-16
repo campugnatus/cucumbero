@@ -67,7 +67,7 @@ function render() {
 
   el.viewIdle.hidden = active;
   el.viewActive.hidden = !active;
-  el.stateChip.textContent = active ? 'focusing' : '';
+  el.stateChip.textContent = active ? '' : '';
   el.stateChip.classList.toggle('on', active);
 
   el.count.textContent = String(state.blocklist.length);
@@ -136,7 +136,10 @@ async function refresh() {
 // ------------------------------------------------------------- duration ----
 
 const STEP = 15; // the +/- buttons work in quarter hours
-const DEFAULT_MIN = 45;
+const DEFAULT_MIN = 45; // only until there's a session to learn from
+// The last length actually started, filled in at boot. Used wherever the field
+// needs a value it wasn't given — you probably want the same length again.
+let defaultMinutes = DEFAULT_MIN;
 const MIN_TYPED = 1; // you can type a 1-minute session; the buttons won't go there
 const MAX_MIN = 720;
 
@@ -148,7 +151,7 @@ function typedMinutes() {
 // Normalizes whatever is in the box into a number we're willing to run with.
 function commitMinutes() {
   const n = typedMinutes();
-  const v = Number.isFinite(n) ? Math.min(MAX_MIN, Math.max(MIN_TYPED, n)) : DEFAULT_MIN;
+  const v = Number.isFinite(n) ? Math.min(MAX_MIN, Math.max(MIN_TYPED, n)) : defaultMinutes;
   el.minutes.value = String(v);
   syncStepper();
   return v;
@@ -156,7 +159,7 @@ function commitMinutes() {
 
 function syncStepper() {
   const n = typedMinutes();
-  const v = Number.isFinite(n) ? n : DEFAULT_MIN;
+  const v = Number.isFinite(n) ? n : defaultMinutes;
   el.minus.disabled = v <= STEP;
   el.plus.disabled = v >= MAX_MIN;
 }
@@ -165,7 +168,7 @@ function syncStepper() {
 // 30, not 35.
 function stepBy(dir) {
   const n = typedMinutes();
-  const base = Number.isFinite(n) ? n : DEFAULT_MIN;
+  const base = Number.isFinite(n) ? n : defaultMinutes;
   if (dir < 0 && base <= STEP) return;
   const next =
     dir > 0 ? Math.floor(base / STEP) * STEP + STEP : Math.ceil(base / STEP) * STEP - STEP;
@@ -203,12 +206,14 @@ el.go.addEventListener('click', async () => {
   await refresh();
 });
 
-// ---------------------------------------------------------- hold to stop ----
+// --------------------------------------------------------- hold to abort ----
 
 (function wireHold() {
   const b = el.stop;
   const fill = b.querySelector('.fill');
   const label = b.querySelector('.label-text');
+  // Authored in popup.html — captured so the reset path can't drift from it.
+  const idleLabel = label.textContent;
   let raf = null;
   let start = 0;
 
@@ -218,7 +223,7 @@ el.go.addEventListener('click', async () => {
     b.classList.remove('armed');
     b.classList.add('releasing');
     fill.style.width = '0%';
-    label.textContent = 'hold to stop focusing';
+    label.textContent = idleLabel;
   };
 
   b.addEventListener('pointerdown', (e) => {
@@ -294,6 +299,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 (async function init() {
   await refresh();
+
+  // Seeded once here rather than in render(), which re-runs on every storage
+  // change and would overwrite whatever you were typing.
+  if (state.lastMinutes) {
+    defaultMinutes = state.lastMinutes;
+    el.minutes.value = String(state.lastMinutes);
+  }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {

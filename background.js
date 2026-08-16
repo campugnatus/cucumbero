@@ -103,7 +103,9 @@ function sessionIsLive(session) {
 async function startSession(durationMs) {
   const now = Date.now();
   const session = { startedAt: now, endsAt: now + durationMs, durationMs };
-  await chrome.storage.local.set({ session });
+  // Remembered so the next popup opens on the length you actually use. Recorded
+  // at the start, so it reflects what you chose even if you abort early.
+  await chrome.storage.local.set({ session, lastMinutes: Math.round(durationMs / 60000) });
   await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
 
   await chrome.alarms.clear(ALARM_END);
@@ -308,7 +310,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 const handlers = {
   async GET_STATE() {
     const session = await currentSession();
-    return { session: sessionIsLive(session) ? session : null, blocklist: await readList() };
+    const { lastMinutes = 0 } = await chrome.storage.local.get('lastMinutes');
+    return { session: sessionIsLive(session) ? session : null, blocklist: await readList(), lastMinutes };
   },
 
   async START({ durationMs }) {

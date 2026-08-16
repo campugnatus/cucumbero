@@ -14,11 +14,12 @@
     window.__cucumbero.destroy?.();
   }
 
-  const HOLD_MS = 5000; // hold-to-stop duration
+  const HOLD_MS = 5000; // how long the abort button must be held
   const Z = '2147483647';
   // Namespaced: the face goes into the page's own font set, so a plain "Nunito"
   // would shadow the page's if it happens to use one.
   const FONT_FAMILY = 'CucumberoNunito';
+  const HOLD_LABEL = 'hold to abort the session';
   const COOLDOWN_HINT = 'One break a minute';
 
   let host = null;
@@ -176,7 +177,7 @@
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
       font-weight: 700;
       position: absolute; bottom: 22px; left: 0; right: 0;
-      font-size: 12px; letter-spacing: 0.18em; text-transform: lowercase; color: #4c5849;
+      font-size: 12px; letter-spacing: 0.18em; text-transform: lowercase; color: #6e7a6b;
     }
 
     .pill {
@@ -224,7 +225,9 @@
       '<h1></h1>' +
       '<div><div class="clock">--:--</div><div class="sub">left in this session</div></div>' +
       '<div class="actions">' +
-      '<button class="hold" type="button"><span class="fill"></span><span class="label">hold to stop focusing</span></button>' +
+      '<button class="hold" type="button"><span class="fill"></span><span class="label">' +
+      HOLD_LABEL +
+      '</span></button>' +
       '<button class="brk" type="button"></button>' +
       '</div>' +
       '<div class="brand">🥒 cucumbero</div>' +
@@ -267,7 +270,7 @@
     return true;
   }
 
-  // ------------------------------------------------------ hold-to-stop ----
+  // ----------------------------------------------------- hold-to-abort ----
 
   function wireHold() {
     const b = els.hold;
@@ -303,7 +306,7 @@
       b.classList.remove('armed');
       b.classList.add('releasing');
       els.holdFill.style.width = '0%';
-      els.holdLabel.textContent = 'hold to stop focusing';
+      els.holdLabel.textContent = HOLD_LABEL;
     };
     b.addEventListener('pointerdown', start);
     b.addEventListener('pointerup', cancel);
@@ -316,7 +319,7 @@
   }
 
   async function giveUp() {
-    els.holdLabel.textContent = 'stopping…';
+    els.holdLabel.textContent = 'ending…';
     await send('STOP');
     // The worker broadcasts CUCUMBERO_DISMISS; this is just a safety net.
     setTimeout(() => {
@@ -382,7 +385,7 @@
         // Reset anything the tail end of a previous session left behind.
         els.sub.textContent = 'left in this session';
         els.holdFill.style.width = '0%';
-        els.holdLabel.textContent = 'hold to stop focusing';
+        els.holdLabel.textContent = HOLD_LABEL;
         // A fullscreen video sits in the top layer, above any z-index we can set.
         if (document.fullscreenElement) {
           try {
