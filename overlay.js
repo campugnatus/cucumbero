@@ -429,10 +429,7 @@
   function teardown() {
     mode = 'hidden';
     lockScroll(false);
-    if (ticker) {
-      clearInterval(ticker);
-      ticker = null;
-    }
+    stopTicker();
     clearTimeout(nudgeTimer);
     observer?.disconnect();
     observer = null;
@@ -496,13 +493,15 @@
     ticker = setInterval(tick, 250);
   }
 
+  function stopTicker() {
+    clearInterval(ticker);
+    ticker = null;
+  }
+
   // Timer's up. No fanfare — just get out of the way.
   function fadeOut() {
     if (!host) return;
-    if (ticker) {
-      clearInterval(ticker);
-      ticker = null;
-    }
+    stopTicker();
     lockScroll(false);
     els.pill.style.display = 'none';
     if (mode === 'break') {

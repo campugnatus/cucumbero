@@ -61,6 +61,11 @@ async function setBreak(tabId, until) {
   await chrome.storage.session.set({ breaks });
 }
 
+// Every session boundary starts the break allowance fresh.
+async function resetBreaks() {
+  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
+}
+
 // --------------------------------------------------------------- domains ----
 
 // Accepts anything vaguely URL-shaped and returns a bare registrable-ish host,
@@ -102,19 +107,23 @@ function sessionIsLive(session) {
   return !!session && session.endsAt > Date.now();
 }
 
+// ALARM_END is the session's real deadline; ALARM_TICK keeps the badge honest
+// and re-sweeps the tabs once a minute as a self-heal.
+async function armAlarms(session) {
+  await chrome.alarms.clear(ALARM_END);
+  await chrome.alarms.clear(ALARM_TICK);
+  chrome.alarms.create(ALARM_END, { when: session.endsAt });
+  chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
+}
+
 async function startSession(durationMs) {
   const now = Date.now();
   const session = { startedAt: now, endsAt: now + durationMs, durationMs };
   // Remembered so the next popup opens on the length you actually use. Recorded
   // at the start, so it reflects what you chose even if you abort early.
   await chrome.storage.local.set({ session, lastMinutes: Math.round(durationMs / 60000) });
-  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
-
-  await chrome.alarms.clear(ALARM_END);
-  await chrome.alarms.clear(ALARM_TICK);
-  chrome.alarms.create(ALARM_END, { when: session.endsAt });
-  chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
-
+  await resetBreaks();
+  await armAlarms(session);
   await paintBadge(session);
   await sweepAllTabs();
   return session;
@@ -145,7 +154,7 @@ async function endSession(reason) {
   if (!session) return null;
 
   await chrome.storage.local.set({ session: null });
-  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
+  await resetBreaks();
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
   await paintBadge(null);
@@ -189,11 +198,11 @@ async function tellTab(tabId, message) {
   }
 }
 
-async function showOverlay(tabId, session, resumeBreakUntil) {
+async function showOverlay(tabId, session) {
   const message = {
     type: 'CUCUMBERO_SHOW',
     endsAt: session.endsAt,
-    breakUntil: resumeBreakUntil || 0,
+    breakUntil: await breakUntil(tabId), // a break survives navigation within the tab
     breakMs: BREAK_MS,
     breakReadyAt: await breakReadyAt(),
   };
@@ -215,27 +224,26 @@ async function broadcast(message) {
   await Promise.all(tabs.map((t) => (t.id != null ? tellTab(t.id, message) : null)));
 }
 
-// Decides what a single tab deserves right now.
-async function evaluateTab(tabId, url, sessionArg, listArg) {
-  const session = sessionArg !== undefined ? sessionArg : await currentSession();
-  if (!sessionIsLive(session)) {
-    await tellTab(tabId, { type: 'CUCUMBERO_DISMISS' });
-    return;
+// Decides what a single tab deserves right now. A sweep passes `ctx` so one
+// pass over every tab doesn't re-read storage per tab; note the check is for
+// the context object, not for a truthy session — no session is a valid answer.
+async function evaluateTab(tabId, url, ctx) {
+  const session = ctx ? ctx.session : await currentSession();
+  if (sessionIsLive(session)) {
+    const list = ctx ? ctx.list : await readList(); // not read at all when idle
+    if (urlIsBlocked(url, list)) {
+      await showOverlay(tabId, session);
+      return;
+    }
   }
-  const list = listArg !== undefined ? listArg : await readList();
-  if (!urlIsBlocked(url, list)) {
-    await tellTab(tabId, { type: 'CUCUMBERO_DISMISS' });
-    return;
-  }
-  await showOverlay(tabId, session, await breakUntil(tabId));
+  await tellTab(tabId, { type: 'CUCUMBERO_DISMISS' });
 }
 
 async function sweepAllTabs() {
-  const session = await currentSession();
-  const list = await readList();
+  const ctx = { session: await currentSession(), list: await readList() };
   const tabs = await chrome.tabs.query({});
   await Promise.all(
-    tabs.map((t) => (t.id != null ? evaluateTab(t.id, t.url || t.pendingUrl, session, list) : null))
+    tabs.map((t) => (t.id != null ? evaluateTab(t.id, t.url || t.pendingUrl, ctx) : null))
   );
 }
 
@@ -261,14 +269,17 @@ async function paintBadge(session) {
 // launch, and every wake from eviction. Reloading the extension kills the
 // overlays already on people's tabs (they self-destruct once their context is
 // invalid), so a live session has to put them straight back.
-async function bootstrap(resetBreaks) {
-  if (resetBreaks) await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
+async function bootstrap(fresh) {
+  if (fresh) await resetBreaks();
   const session = await currentSession();
   await paintBadge(session);
   if (!sessionIsLive(session)) return;
 
-  if (!(await chrome.alarms.get(ALARM_END))) chrome.alarms.create(ALARM_END, { when: session.endsAt });
-  if (!(await chrome.alarms.get(ALARM_TICK))) chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
+  // Cheaper than re-arming blind, and avoids resetting the tick alarm's phase
+  // on every wake.
+  if (!(await chrome.alarms.get(ALARM_END)) || !(await chrome.alarms.get(ALARM_TICK))) {
+    await armAlarms(session);
+  }
 
   // Throttled: a worker can wake many times a minute during normal browsing,
   // and a sweep touches every open tab.

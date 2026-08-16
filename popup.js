@@ -136,30 +136,29 @@ async function refresh() {
 // ------------------------------------------------------------- duration ----
 
 const STEP = 15; // the +/- buttons work in quarter hours
-const DEFAULT_MIN = 45; // only until there's a session to learn from
-// The last length actually started, filled in at boot. Used wherever the field
-// needs a value it wasn't given — you probably want the same length again.
-let defaultMinutes = DEFAULT_MIN;
 const MIN_TYPED = 1; // you can type a 1-minute session; the buttons won't go there
 const MAX_MIN = 720;
+// The last length actually started, seeded at boot; 45 until there's a session
+// to learn from. Stands in wherever the field holds nothing usable — you
+// probably want the same length again.
+let defaultMinutes = 45;
 
-function typedMinutes() {
+// What the field currently means, empty or mistyped included.
+function currentMinutes() {
   const n = parseInt(el.minutes.value, 10);
-  return Number.isFinite(n) ? n : NaN;
+  return Number.isFinite(n) ? n : defaultMinutes;
 }
 
-// Normalizes whatever is in the box into a number we're willing to run with.
+// Normalizes the box into a number we're willing to run with, and writes it back.
 function commitMinutes() {
-  const n = typedMinutes();
-  const v = Number.isFinite(n) ? Math.min(MAX_MIN, Math.max(MIN_TYPED, n)) : defaultMinutes;
+  const v = Math.min(MAX_MIN, Math.max(MIN_TYPED, currentMinutes()));
   el.minutes.value = String(v);
   syncStepper();
   return v;
 }
 
 function syncStepper() {
-  const n = typedMinutes();
-  const v = Number.isFinite(n) ? n : defaultMinutes;
+  const v = currentMinutes();
   el.minus.disabled = v <= STEP;
   el.plus.disabled = v >= MAX_MIN;
 }
@@ -167,8 +166,7 @@ function syncStepper() {
 // Snaps to the 15-minute grid rather than blindly adding: from 20, "+" gives
 // 30, not 35.
 function stepBy(dir) {
-  const n = typedMinutes();
-  const base = Number.isFinite(n) ? n : defaultMinutes;
+  const base = currentMinutes();
   if (dir < 0 && base <= STEP) return;
   const next =
     dir > 0 ? Math.floor(base / STEP) * STEP + STEP : Math.ceil(base / STEP) * STEP - STEP;
