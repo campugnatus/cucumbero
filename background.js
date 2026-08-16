@@ -245,9 +245,12 @@ async function paintBadge(session) {
     return;
   }
   const left = session.endsAt - Date.now();
+  // Always minutes. An "h" reading floored the value, so 1h58 showed as "1h"
+  // and kept saying it for the next hour. The badge fits ~4 characters and the
+  // longest session is 720 minutes, so three digits are never a problem.
   const mins = Math.ceil(left / 60000);
   await chrome.action.setBadgeBackgroundColor({ color: GREEN });
-  await chrome.action.setBadgeText({ text: mins >= 60 ? Math.floor(mins / 60) + 'h' : String(mins) });
+  await chrome.action.setBadgeText({ text: String(mins) });
 }
 
 // ------------------------------------------------------------- bootstrap ----
