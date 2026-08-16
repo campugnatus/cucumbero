@@ -43,6 +43,17 @@ function clock(ms) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
+// Remove-button glyph. Inherits its colour from the button via currentColor,
+// and is hidden from the accessibility tree — the button carries an aria-label.
+const ICON_X =
+  '<svg viewBox="0 0 121.31 122.876" aria-hidden="true" focusable="false">' +
+  '<path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M90.914,5.296' +
+  'c6.927-7.034,18.188-7.065,25.154-0.068c6.961,6.995,6.991,18.369,0.068,25.397L85.743,61.452' +
+  'l30.425,30.855c6.866,6.978,6.773,18.28-0.208,25.247c-6.983,6.964-18.21,6.946-25.074-0.031' +
+  'L60.669,86.881L30.395,117.58c-6.927,7.034-18.188,7.065-25.154,0.068c-6.961-6.995-6.992-18.369' +
+  '-0.068-25.397l30.393-30.827L5.142,30.568c-6.867-6.978-6.773-18.28,0.208-25.247' +
+  'c6.983-6.963,18.21-6.946,25.074,0.031l30.217,30.643L90.914,5.296L90.914,5.296z"/></svg>';
+
 // Errors only. Anything that worked speaks for itself in the UI; pass '' to
 // clear a stale complaint once the user has fixed it.
 function say(text) {
@@ -68,8 +79,10 @@ function render() {
     host.textContent = domain;
     const rm = document.createElement('button');
     rm.type = 'button';
-    rm.textContent = '×';
+    rm.innerHTML = ICON_X;
     rm.title = active ? 'Locked during a session' : 'Remove';
+    // The glyph is decorative, so the button needs a name of its own.
+    rm.setAttribute('aria-label', `Remove ${domain}`);
     rm.disabled = active;
     rm.addEventListener('click', async () => {
       const res = await send('REMOVE_SITE', { domain });

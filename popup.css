@@ -25,7 +25,7 @@
   --bg: #ebebed;
   --sunk: #e1e1e1; /* the recessed block-list section */
   --panel: #ffffff;
-  --line: #d4d4d8;
+  --line: #d2d2d6;
   --text: #1b1b1d;
   --dim: #5c5c60;
   --faint: #78787e;
@@ -99,7 +99,7 @@ header {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--dim);
-  font-size: 19px;
+  font-size: 24px;
   line-height: 1;
   cursor: pointer;
   transition: all 0.13s ease;
@@ -121,18 +121,11 @@ header {
   transition: border-color 0.13s ease;
 }
 /* Focus lands on the whole control rather than one segment — tinting just the
-   middle box reads as broken now that the three are a single pill. */
-.stepper:focus-within #minus {
-  border-color: var(--green-dim);
-}
-.stepper:focus-within #plus {
-  border-color: var(--green-dim);
-  border-left-color: var(--line);
-}
-
+   middle box reads as broken now that the three are a single pill. With no
+   inner borders left to recolour, one rule covers all three. */
+.stepper:focus-within .step,
 .stepper:focus-within .amount {
   border-color: var(--green-dim);
-  border-left-color: var(--line);
 }
 .amount input {
   width: 62px;
@@ -166,10 +159,12 @@ header {
   border-bottom-right-radius: 999px;
 }
 
-.step + .amount,
-.amount + .step {
-  margin-left: -1px;
-}
+/* The inner borders aren't hidden by overlapping the segments — that only works
+   while every background is opaque, and it breaks the moment a segment goes
+   translucent on :active. They're simply not drawn. */
+#minus { border-right: 0; }
+.amount { border-left: 0; border-right: 0; }
+#plus { border-left: 0; }
 /* ----------------------------------------------------------- buttons ---- */
 
 .primary {
@@ -314,33 +309,41 @@ header {
 
 ul {
   list-style: none;
-  padding: 0;
-  max-height: 168px;
+  max-height: 200px;
   overflow-y: auto;
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  padding: 10px;
+  border-radius: 9px;
+  margin-bottom: 12px;
 }
 li {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 2px 7px 8px;
-  border-radius: 7px;
+  padding: 1px 0px 1px 8px;
+  border-radius: 999px;
   font-size: 13px;
   color: var(--text);
 }
-li:hover { background: var(--panel); }
 li .host { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 li button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   border: 0;
+  border-radius: 999px;
   background: none;
   color: var(--faint);
-  font-size: 15px;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: 6px;
   cursor: pointer;
+  transition: color 0.13s ease, background-color 0.13s ease;
 }
-li button:hover:not(:disabled) { color: var(--red); background: rgba(178, 59, 35, 0.1); }
-li button:disabled { opacity: 0.25; cursor: not-allowed; }
+li button svg { display: block; width: 9px; height: 9px; }
+li button:hover:not(:disabled) { color: #fff; background: var(--red); }
+li button:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .hint {
   margin: 6px 2px 2px;
@@ -358,6 +361,10 @@ li button:disabled { opacity: 0.25; cursor: not-allowed; }
   background-color: var(--sunk);
   padding: 14px;
   padding-top: 6px;
+}
+
+#plus:active {
+  border-left-color: white;
 }
 
 #view-active,

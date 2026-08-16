@@ -127,7 +127,7 @@
     }
 
     h1 {
-      font-size: clamp(24px, 4.4vw, 46px); line-height: 1.15; font-weight: 650;
+      font-size: clamp(24px, 3.8vw, 46px); line-height: 1.15; font-weight: 650;
       letter-spacing: -0.02em; max-width: 18ch; color: #f3f7f0;
     }
 
@@ -170,6 +170,8 @@
     .brk:hover { background: rgba(233,240,228,0.07); color: #cfd8ca; }
 
     .brand {
+      font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
+      font-weight: 700;
       position: absolute; bottom: 22px; left: 0; right: 0;
       font-size: 12px; letter-spacing: 0.18em; text-transform: lowercase; color: #4c5849;
     }
@@ -244,7 +246,7 @@
       holdLabel: wrap.querySelector('.label'),
       brk: wrap.querySelector('.brk'),
     };
-    els.title.textContent = 'You know what you should be doing.';
+    els.title.textContent = 'You know what you should be doing...';
 
     wireHold();
     els.brk.addEventListener('click', takeBreak);
