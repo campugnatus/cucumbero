@@ -11,6 +11,8 @@ const BREAK_MS = 10_000;
 // A break you can take again immediately is just an off switch. The cooldown
 // runs from when the break ends, and is session-wide rather than per-tab —
 // per-tab would be defeated by opening the same site in a new tab.
+// Kept at a minute because the overlay states the rule in words when you press
+// the button too soon — change this and change COOLDOWN_NUDGE in overlay.js.
 const BREAK_COOLDOWN_MS = 60_000;
 
 const GREEN = '#7cc243';
@@ -194,7 +196,6 @@ async function showOverlay(tabId, session, resumeBreakUntil) {
     breakUntil: resumeBreakUntil || 0,
     breakMs: BREAK_MS,
     breakReadyAt: await breakReadyAt(),
-    cooldownMs: BREAK_COOLDOWN_MS,
   };
   if (await tellTab(tabId, message)) return;
   try {
@@ -355,12 +356,12 @@ const handlers = {
     if (tabId == null) return { error: 'no tab' };
     const now = Date.now();
     const readyAt = await breakReadyAt();
-    if (now < readyAt) return { denied: true, breakReadyAt: readyAt, cooldownMs: BREAK_COOLDOWN_MS };
+    if (now < readyAt) return { denied: true, breakReadyAt: readyAt };
 
     const until = now + BREAK_MS;
     await setBreak(tabId, until);
     await chrome.storage.session.set({ nextBreakAt: until + BREAK_COOLDOWN_MS });
-    return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS, cooldownMs: BREAK_COOLDOWN_MS };
+    return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS };
   },
 
   async END_BREAK(_payload, sender) {
