@@ -7,7 +7,11 @@
 
 const ALARM_END = 'cucumbero:end';
 const ALARM_TICK = 'cucumbero:tick';
-const BREAK_MS = 20_000;
+const BREAK_MS = 10_000;
+// A break you can take again immediately is just an off switch. The cooldown
+// runs from when the break ends, and is session-wide rather than per-tab —
+// per-tab would be defeated by opening the same site in a new tab.
+const BREAK_COOLDOWN_MS = 60_000;
 
 const GREEN = '#7cc243';
 
@@ -38,6 +42,12 @@ async function breakUntil(tabId) {
   const breaks = await readBreaks();
   const until = breaks[String(tabId)] || 0;
   return until > Date.now() ? until : 0;
+}
+
+// When the next break may be taken, session-wide. 0 means "right now".
+async function breakReadyAt() {
+  const { nextBreakAt = 0 } = await chrome.storage.session.get('nextBreakAt');
+  return nextBreakAt;
 }
 
 async function setBreak(tabId, until) {
@@ -94,7 +104,7 @@ async function startSession(durationMs) {
   const now = Date.now();
   const session = { startedAt: now, endsAt: now + durationMs, durationMs };
   await chrome.storage.local.set({ session });
-  await chrome.storage.session.set({ breaks: {} });
+  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
 
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
@@ -131,7 +141,7 @@ async function endSession(reason) {
   if (!session) return null;
 
   await chrome.storage.local.set({ session: null });
-  await chrome.storage.session.set({ breaks: {} });
+  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
   await paintBadge(null);
@@ -181,6 +191,7 @@ async function showOverlay(tabId, session, resumeBreakUntil) {
     endsAt: session.endsAt,
     breakUntil: resumeBreakUntil || 0,
     breakMs: BREAK_MS,
+    breakReadyAt: await breakReadyAt(),
   };
   if (await tellTab(tabId, message)) return;
   try {
@@ -244,7 +255,7 @@ async function paintBadge(session) {
 // overlays already on people's tabs (they self-destruct once their context is
 // invalid), so a live session has to put them straight back.
 async function bootstrap(resetBreaks) {
-  if (resetBreaks) await chrome.storage.session.set({ breaks: {} });
+  if (resetBreaks) await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
   const session = await currentSession();
   await paintBadge(session);
   if (!sessionIsLive(session)) return;
@@ -331,13 +342,18 @@ const handlers = {
     return { blocklist: next };
   },
 
-  // From an overlay: give this tab BREAK_MS of peace.
+  // From an overlay: give this tab BREAK_MS of peace, if it's owed one.
   async TAKE_BREAK(_payload, sender) {
     const tabId = sender?.tab?.id;
     if (tabId == null) return { error: 'no tab' };
-    const until = Date.now() + BREAK_MS;
+    const now = Date.now();
+    const readyAt = await breakReadyAt();
+    if (now < readyAt) return { denied: true, breakReadyAt: readyAt };
+
+    const until = now + BREAK_MS;
     await setBreak(tabId, until);
-    return { breakUntil: until };
+    await chrome.storage.session.set({ nextBreakAt: until + BREAK_COOLDOWN_MS });
+    return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS };
   },
 
   async END_BREAK(_payload, sender) {

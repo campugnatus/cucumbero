@@ -25,8 +25,11 @@ Click the icon:
 On the overlay:
 
 - **hold to stop focusing** — a genuine 5-second press-and-hold. No click-through.
-- **20-second break** — hides the overlay in *that tab only* so you can pause a
+- **10-second break** — hides the overlay in *that tab only* so you can pause a
   video or close a thing. A small pill in the corner counts you back down.
+  Then a 60-second cooldown, counted from the end of the break, during which the
+  button reads "another break in Ns" and does nothing. The cooldown is
+  session-wide, not per-tab, or you could just reopen the site in a new tab.
 
 When the timer runs out every live overlay just fades away, and you get a system
 notification.

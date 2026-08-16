@@ -19,13 +19,15 @@
   // Namespaced: the face goes into the page's own font set, so a plain "Nunito"
   // would shadow the page's if it happens to use one.
   const FONT_FAMILY = 'CucumberoNunito';
+  const COOLDOWN_HINT = 'One break a minute';
 
   let host = null;
   let root = null;
   let els = {};
   let endsAt = 0;
   let breakEndsAt = 0;
-  let breakMs = 20000;
+  let breakMs = 10000;
+  let breakReadyAt = 0; // session-wide: when another break may be taken
   let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let holdRaf = null;
@@ -153,7 +155,7 @@
       transition: background .15s ease, color .15s ease, border-color .15s ease;
       -webkit-tap-highlight-color: transparent;
     }
-    button:hover { background: rgba(233,240,228,0.11); color: #f3f7f0; }
+    button:hover:not([aria-disabled="true"]) { background: rgba(233,240,228,0.11); color: #f3f7f0; }
     button:focus-visible { outline: 2px solid #7cc243; outline-offset: 3px; }
 
     .hold { touch-action: none; }
@@ -167,7 +169,8 @@
     .hold.armed { border-color: rgba(124,194,67,0.65); color: #f3f7f0; }
 
     .brk { border-color: transparent; background: transparent; color: #6f7c6b; font-size: 13px; min-width: 0; }
-    .brk:hover { background: rgba(233,240,228,0.07); color: #cfd8ca; }
+    .brk:hover:not([aria-disabled="true"]) { background: rgba(233,240,228,0.07); color: #cfd8ca; }
+    .brk[aria-disabled="true"] { color: #4c5849; cursor: default; }
 
     .brand {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
@@ -222,7 +225,7 @@
       '<div><div class="clock">--:--</div><div class="sub">left in this session</div></div>' +
       '<div class="actions">' +
       '<button class="hold" type="button"><span class="fill"></span><span class="label">hold to stop focusing</span></button>' +
-      '<button class="brk" type="button">20-second break</button>' +
+      '<button class="brk" type="button"></button>' +
       '</div>' +
       '<div class="brand">🥒 cucumbero</div>' +
       '</div>';
@@ -322,9 +325,32 @@
   }
 
   async function takeBreak() {
+    if (Date.now() < breakReadyAt) return; // button is disabled; belt and braces
     const res = await send('TAKE_BREAK');
+    if (res.denied) {
+      // Another tab used the allowance first.
+      breakReadyAt = res.breakReadyAt || breakReadyAt;
+      syncBreak();
+      return;
+    }
     breakEndsAt = res.breakUntil || Date.now() + breakMs;
+    breakReadyAt = res.breakReadyAt || breakReadyAt;
     setMode('break');
+  }
+
+  // The label never changes — a visible countdown would just invite you to sit
+  // and wait for it. On cooldown the button goes inert and explains itself on
+  // hover. aria-disabled rather than the disabled property, because a disabled
+  // button gets no mouse events and so never shows its tooltip; takeBreak()
+  // does the actual refusing.
+  function syncBreak() {
+    if (!els.brk) return;
+    const cooling = Date.now() < breakReadyAt;
+    if (els.brk.dataset.cooling === String(cooling)) return;
+    els.brk.dataset.cooling = String(cooling);
+    els.brk.textContent = `${Math.round(breakMs / 1000)}-second break`;
+    els.brk.setAttribute('aria-disabled', String(cooling));
+    els.brk.title = cooling ? COOLDOWN_HINT : '';
   }
 
   // ---------------------------------------------------------------- modes ----
@@ -421,6 +447,7 @@
     }
 
     if (mode === 'blocking') {
+      syncBreak();
       const left = endsAt - Date.now();
       paintClock(clock(left));
       if (left <= 0 && !expiryReported) {
@@ -467,6 +494,7 @@
       }
       endsAt = msg.endsAt;
       breakMs = msg.breakMs || breakMs;
+      breakReadyAt = msg.breakReadyAt || 0;
       expiryReported = false;
       if (msg.breakUntil && msg.breakUntil > Date.now()) {
         breakEndsAt = msg.breakUntil;
