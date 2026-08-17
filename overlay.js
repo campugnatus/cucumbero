@@ -14,12 +14,10 @@
     window.__cucumbero.destroy?.();
   }
 
-  const HOLD_MS = 5000; // how long the abort button must be held
   const Z = '2147483647';
   // Namespaced: the face goes into the page's own font set, so a plain "Nunito"
   // would shadow the page's if it happens to use one.
   const FONT_FAMILY = 'CucumberoNunito';
-  const HOLD_LABEL = 'hold to abort the session';
   // Shown on the button itself when you press it during the cooldown.
   const COOLDOWN_NUDGE = 'One break a minute';
 
@@ -33,8 +31,6 @@
   let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let nudgeTimer = null;
-  let holdRaf = null;
-  let holdStart = 0;
   let expiryReported = false;
   let scrollLocked = false;
   let observer = null;
@@ -165,16 +161,6 @@
     button:hover:not([aria-disabled="true"]) { background: rgba(233,240,228,0.11); color: #f3f7f0; }
     button:focus-visible { outline: 2px solid #7cc243; outline-offset: 3px; }
 
-    .hold { touch-action: none; }
-    .hold .fill {
-      position: absolute; inset: 0; width: 0%;
-      background: linear-gradient(90deg, rgba(124,194,67,0.35), rgba(124,194,67,0.6));
-      transition: width .08s linear;
-    }
-    .hold.releasing .fill { transition: width .25s ease-out; }
-    .hold .label { position: relative; }
-    .hold.armed { border-color: rgba(124,194,67,0.65); color: #f3f7f0; }
-
     .brk {
       display: inline-flex; align-items: center; gap: 8px;
       border-color: transparent; background: transparent; color: #6f7c6b;
@@ -204,10 +190,8 @@
     .wrap { transition: opacity 1.6s ease; }
     .wrap.fade { opacity: 0; }
 
-    @media (prefers-reduced-motion: reduce) {
-      /* the fade stays — cutting it would just freeze the overlay, then blink */
-      .hold .fill { transition: none; }
-    }
+    /* No prefers-reduced-motion block: the only animation left is the fade at
+       the end, and cutting that would just freeze the overlay and then blink. */
   `;
 
   function build() {
@@ -238,9 +222,6 @@
       '<div><div class="clock">--:--</div><div class="sub">left in this session</div></div>' +
       '<h1></h1>' +
       '<div class="actions">' +
-      '<button class="hold" type="button"><span class="fill"></span><span class="label">' +
-      HOLD_LABEL +
-      '</span></button>' +
       '<button class="brk" type="button"><span class="brk-label"></span></button>' +
       '</div>' +
       '<div class="brand">🥒 cucumbero</div>' +
@@ -260,15 +241,11 @@
       clock: wrap.querySelector('.clock'),
       sub: wrap.querySelector('.sub'),
       panel: wrap.querySelector('.panel'),
-      hold: wrap.querySelector('.hold'),
-      holdFill: wrap.querySelector('.fill'),
-      holdLabel: wrap.querySelector('.label'),
       brk: wrap.querySelector('.brk'),
       brkLabel: wrap.querySelector('.brk-label'),
     };
     els.title.textContent = 'You know what you should be doing...';
 
-    wireHold();
     els.brk.addEventListener('click', takeBreak);
 
     // Some sites nuke unknown top-level nodes. Put it back.
@@ -282,63 +259,6 @@
     }
 
     return true;
-  }
-
-  // ----------------------------------------------------- hold-to-abort ----
-
-  function wireHold() {
-    const b = els.hold;
-    const start = (e) => {
-      if (mode !== 'blocking') return;
-      e.preventDefault();
-      if (holdRaf) return;
-      holdStart = performance.now();
-      b.classList.add('armed');
-      b.classList.remove('releasing');
-      try {
-        b.setPointerCapture(e.pointerId);
-      } catch {}
-      const step = () => {
-        const held = performance.now() - holdStart;
-        const pct = Math.min(1, held / HOLD_MS);
-        els.holdFill.style.width = pct * 100 + '%';
-        const left = Math.max(0, HOLD_MS - held) / 1000;
-        els.holdLabel.textContent = pct >= 1 ? 'ok, fine.' : `keep holding… ${left.toFixed(1)}s`;
-        if (pct >= 1) {
-          holdRaf = null;
-          giveUp();
-          return;
-        }
-        holdRaf = requestAnimationFrame(step);
-      };
-      holdRaf = requestAnimationFrame(step);
-    };
-    const cancel = () => {
-      if (!holdRaf) return;
-      cancelAnimationFrame(holdRaf);
-      holdRaf = null;
-      b.classList.remove('armed');
-      b.classList.add('releasing');
-      els.holdFill.style.width = '0%';
-      els.holdLabel.textContent = HOLD_LABEL;
-    };
-    b.addEventListener('pointerdown', start);
-    b.addEventListener('pointerup', cancel);
-    b.addEventListener('pointercancel', cancel);
-    b.addEventListener('pointerleave', cancel);
-    b.addEventListener('contextmenu', (e) => e.preventDefault());
-    b.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') e.preventDefault(); // no keyboard shortcut out of it
-    });
-  }
-
-  async function giveUp() {
-    els.holdLabel.textContent = 'ending…';
-    await send('STOP');
-    // The worker broadcasts CUCUMBERO_DISMISS; this is just a safety net.
-    setTimeout(() => {
-      if (mode === 'blocking') teardown();
-    }, 600);
   }
 
   async function takeBreak() {
@@ -417,8 +337,6 @@
         els.wrap.classList.remove('fade');
         // Reset anything the tail end of a previous session left behind.
         els.sub.textContent = 'left in this session';
-        els.holdFill.style.width = '0%';
-        els.holdLabel.textContent = HOLD_LABEL;
         // A fullscreen video sits in the top layer, above any z-index we can set.
         if (document.fullscreenElement) {
           try {

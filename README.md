@@ -22,17 +22,20 @@ Click the icon:
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.
 - **Block list** — expands; the `×` buttons work only when no session is running.
-- **Go** — starts the session. Every open, new, or navigated-to tab on a blocked
-  domain gets the overlay immediately.
+- **Start session** — every open, new, or navigated-to tab on a blocked domain
+  gets the overlay immediately.
+- **hold to abort the session** — a genuine 5-second press-and-hold, no
+  click-through, and only here. The overlay deliberately offers no way out:
+  ending a session is a session-level act, so it lives in the session UI rather
+  than in front of you at the moment of weakness.
 
-On the overlay:
+The overlay itself has one control:
 
-- **hold to stop focusing** — a genuine 5-second press-and-hold. No click-through.
 - **10-second break** — hides the overlay in *that tab only* so you can pause a
-  video or close a thing. A small pill in the corner counts you back down.
-  Then a 60-second cooldown, counted from the end of the break, during which the
-  button reads "another break in Ns" and does nothing. The cooldown is
-  session-wide, not per-tab, or you could just reopen the site in a new tab.
+  video or leave a call. A small pill in the corner counts you back down. Then
+  a 60-second cooldown, during which the button goes dim and does nothing;
+  press it anyway and it tells you why. The cooldown is session-wide rather
+  than per-tab, or you could just reopen the site in a new tab.
 
 When the timer runs out every live overlay just fades away, and you get a system
 notification.

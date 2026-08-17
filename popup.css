@@ -241,7 +241,10 @@ header {
   position: absolute;
   inset: 0;
   width: 0%;
-  background: linear-gradient(90deg, rgba(61, 138, 92, 0.16), rgba(61, 138, 92, 0.36));
+  /* Same alphas the overlay's fill used (0.35 → 0.6); the paler 0.16 → 0.36
+     barely read against white. Legible because .hold.armed darkens the label
+     to --text for the duration of the hold. */
+  background: linear-gradient(90deg, rgba(61, 138, 92, 0.35), rgba(61, 138, 92, 0.6));
   transition: width 0.08s linear;
 }
 .hold.releasing .fill { transition: width 0.25s ease-out; }
