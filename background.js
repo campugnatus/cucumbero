@@ -132,11 +132,11 @@ async function startSession(durationMs) {
 // The title already says the session finished, so these only have to carry the
 // tone. Kept short — notification bodies get clipped at two lines.
 const DONE_LINES = [
-  'You can breathe now.',
-  'Stay fresh. As cucumbers do.',
-  'Was it productive? Was it?',
-  'Take a break. Maybe snack on a cucumber.',
-  'The internet survived without you.',
+  'You can breathe now',
+  'Take a breath. Stay fresh. As cucumbers do',
+  'You can take a break now. Maybe snack on a cucumber',
+  'The internet survived without you',
+  'The cucumber is proud of you'
 ];
 
 // Random, but never the same line twice running.
@@ -148,8 +148,25 @@ async function pickLine() {
   return DONE_LINES[next];
 }
 
+// The deadline has two callers — ALARM_END, and an overlay's CHECK_EXPIRY when
+// its own countdown hits zero. Both await readSession() before either writes
+// session: null, so the guard below doesn't stop them both getting through, and
+// the session ends twice. Harmless for the storage writes, not harmless for the
+// notification: the second create reuses the id, which *replaces* the first, and
+// the replacement arrives before the icon has been composited. That was the
+// icon flashing and vanishing. Coalescing the callers is the fix.
+let ending = null;
+
 // reason: 'stopped' (user gave up) | 'finished' (timer ran out)
-async function endSession(reason) {
+function endSession(reason) {
+  if (ending) return ending;
+  ending = endSessionOnce(reason).finally(() => {
+    ending = null;
+  });
+  return ending;
+}
+
+async function endSessionOnce(reason) {
   const session = await readSession();
   if (!session) return null;
 
@@ -162,15 +179,22 @@ async function endSession(reason) {
   await broadcast({ type: reason === 'finished' ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
 
   if (reason === 'finished') {
-    const minutes = Math.round(session.durationMs / 60000);
-    chrome.notifications.create('cucumbero:done:' + session.endsAt, {
+    const options = {
       type: 'basic',
       // The notification API reserves the icon slot whether or not you fill it,
       // so fill it: the 🥒 glyph on transparency, no plate behind it.
       iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
-      title: `Your ${minutes}-minute session has finished`,
+      title: 'Your session has finished',
       message: await pickLine(),
       priority: 2,
+    };
+    // Awaited so the worker isn't torn down before Chrome has taken the
+    // notification — this is the last thing endSession does.
+    await new Promise((resolve) => {
+      chrome.notifications.create('cucumbero:done:' + session.endsAt, options, () => {
+        if (chrome.runtime.lastError) console.warn('cucumbero:', chrome.runtime.lastError.message);
+        resolve();
+      });
     });
   }
   return session;
