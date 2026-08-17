@@ -132,20 +132,19 @@
     /* The variable face covers 200–1000, so any weight here is exact. */
     h1 {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
-      font-size: clamp(24px, 3.8vw, 46px); line-height: 1.15; font-weight: 500;
+      font-size: clamp(24px, 3.8vw, 42px); line-height: 1.15; font-weight: 500;
       letter-spacing: -0.02em; max-width: 18ch; color: #f3f7f0;
     }
 
     .clock {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
-      font-size: clamp(46px, 11vw, 104px); font-weight: 800; line-height: 1;
+      font-size: clamp(46px, 11vw, 96px); font-weight: 800; line-height: 1;
       color: #7cc243;
     }
     /* Nunito's digits share one advance (0.6em); the cells match it exactly and
        keep the countdown from lurching if the font is blocked and we fall back. */
     .clock .digit { display: inline-block; width: 0.6em; text-align: center; }
     .clock .sep { display: inline-block; width: 0.28em; text-align: center; }
-    .sub { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #7d8a78; }
 
     .actions { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 10px; }
 
@@ -164,7 +163,7 @@
     .brk {
       display: inline-flex; align-items: center; gap: 8px;
       border-color: transparent; background: transparent; color: #6f7c6b;
-      font-size: 13px; min-width: 0;
+      font-size: 14px; min-width: 0;
     }
     .brk:hover:not([aria-disabled="true"]) { background: rgba(233,240,228,0.07); color: #cfd8ca; }
     .brk[aria-disabled="true"] { color: #4c5849; cursor: default; }
@@ -219,7 +218,7 @@
     wrap.innerHTML =
       '<div class="veil"></div>' +
       '<div class="panel">' +
-      '<div><div class="clock">--:--</div><div class="sub">left in this session</div></div>' +
+      '<div class="clock">--:--</div>' +
       '<h1></h1>' +
       '<div class="actions">' +
       '<button class="brk" type="button"><span class="brk-label"></span></button>' +
@@ -239,7 +238,6 @@
       pill,
       title: wrap.querySelector('h1'),
       clock: wrap.querySelector('.clock'),
-      sub: wrap.querySelector('.sub'),
       panel: wrap.querySelector('.panel'),
       brk: wrap.querySelector('.brk'),
       brkLabel: wrap.querySelector('.brk-label'),
@@ -335,8 +333,6 @@
       if (next === 'blocking') {
         lockScroll(true);
         els.wrap.classList.remove('fade');
-        // Reset anything the tail end of a previous session left behind.
-        els.sub.textContent = 'left in this session';
         // A fullscreen video sits in the top layer, above any z-index we can set.
         if (document.fullscreenElement) {
           try {
@@ -402,9 +398,10 @@
       syncBreak();
       const left = endsAt - Date.now();
       paintClock(clock(left));
+      // Once, not every tick: tell the worker the countdown is up, in case the
+      // alarm is late. The flag is what keeps it to one message.
       if (left <= 0 && !expiryReported) {
         expiryReported = true;
-        els.sub.textContent = 'wrapping up…';
         send('CHECK_EXPIRY');
       }
     }
