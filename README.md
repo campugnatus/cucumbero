@@ -21,7 +21,7 @@ Click the icon:
 - **Block field** — pre-filled with the domain of the tab you're on, so blocking
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.
-- **Block list** — expands; the `×` buttons work only when no session is running.
+- **Blocklist** — expands; the `×` buttons work only when no session is running.
 - **Start session** — every open, new, or navigated-to tab on a blocked domain
   gets the overlay immediately.
 - **hold to abort the session** — a genuine 5-second press-and-hold, no

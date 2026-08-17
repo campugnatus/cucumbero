@@ -1,6 +1,6 @@
 // cucumbero — the black rectangle.
 //
-// Injected on demand by the service worker into tabs that match the block list.
+// Injected on demand by the service worker into tabs that match the blocklist.
 // Self-contained and idempotent: re-injection into the same document is a no-op,
 // and all state arrives by message so the worker stays the source of truth.
 

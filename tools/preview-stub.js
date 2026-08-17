@@ -2,7 +2,7 @@
 // Loaded before popup.js by tools/preview.py — never shipped in the extension.
 //
 // State is chosen by query string: ?active=1 for a running session,
-// ?list=1 to auto-expand the block list.
+// ?list=1 to auto-expand the blocklist.
 
 const params = new URLSearchParams(location.search);
 

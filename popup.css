@@ -17,7 +17,7 @@
 
   /* Neutral grays on purpose — the only colour in here is the cucumber. */
   --bg: #ebebed;
-  --sunk: #e1e1e1; /* the recessed block-list section */
+  --sunk: #e1e1e1; /* the recessed blocklist section */
   --panel: #ffffff;
   --line: #d2d2d6;
   --text: #1b1b1d;
@@ -353,7 +353,7 @@ li button:disabled { opacity: 0.3; cursor: not-allowed; }
 ::-webkit-scrollbar-thumb { background: #c7c7cd; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #b0b0b7; }
 
-#section-block-list {
+#section-blocklist {
   border-top: 1px solid var(--line);
   background-color: var(--sunk);
   padding: 14px;
