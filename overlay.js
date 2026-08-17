@@ -81,8 +81,10 @@
     if (window.__cucumberoFont || typeof FontFace !== 'function' || !document.fonts) return;
     window.__cucumberoFont = true;
     try {
-      const url = chrome.runtime.getURL('fonts/nunito-800.woff2');
-      const face = new FontFace(FONT_FAMILY, `url(${url})`, { weight: '800', display: 'block' });
+      const url = chrome.runtime.getURL('fonts/nunito-var.woff2');
+      // One variable face for the whole range, so any font-weight below renders
+      // exactly rather than being snapped to the nearest static cut.
+      const face = new FontFace(FONT_FAMILY, `url(${url})`, { weight: '200 1000', display: 'block' });
       face.load().then(
         (loaded) => document.fonts.add(loaded),
         () => {}
@@ -131,8 +133,10 @@
       color: #e9f0e4; user-select: none; -webkit-user-select: none;
     }
 
+    /* The variable face covers 200–1000, so any weight here is exact. */
     h1 {
-      font-size: clamp(24px, 3.8vw, 46px); line-height: 1.15; font-weight: 650;
+      font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
+      font-size: clamp(24px, 3.8vw, 46px); line-height: 1.15; font-weight: 500;
       letter-spacing: -0.02em; max-width: 18ch; color: #f3f7f0;
     }
 
@@ -231,8 +235,8 @@
     wrap.innerHTML =
       '<div class="veil"></div>' +
       '<div class="panel">' +
-      '<h1></h1>' +
       '<div><div class="clock">--:--</div><div class="sub">left in this session</div></div>' +
+      '<h1></h1>' +
       '<div class="actions">' +
       '<button class="hold" type="button"><span class="fill"></span><span class="label">' +
       HOLD_LABEL +
