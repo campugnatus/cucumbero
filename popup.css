@@ -100,7 +100,7 @@ header {
 }
 .step:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
 .step:active:not(:disabled) { background: rgba(61, 138, 92, 0.1); }
-.step:disabled { opacity: 0.3; cursor: not-allowed; }
+.step:disabled { color: transparent; cursor: not-allowed; }
 
 .amount {
   flex: 1;
@@ -241,10 +241,10 @@ header {
   position: absolute;
   inset: 0;
   width: 0%;
-  /* Same alphas the overlay's fill used (0.35 → 0.6); the paler 0.16 → 0.36
-     barely read against white. Legible because .hold.armed darkens the label
-     to --text for the duration of the hold. */
-  background: linear-gradient(90deg, rgba(61, 138, 92, 0.35), rgba(61, 138, 92, 0.6));
+  /* Strong enough to register against white — the original 0.16 → 0.36 didn't.
+     Stays legible because .hold.armed darkens the label to --text while it
+     fills. */
+  background: linear-gradient(90deg, rgba(61, 138, 92, 0.3), rgba(61, 138, 92, 0.6));
   transition: width 0.08s linear;
 }
 .hold.releasing .fill { transition: width 0.25s ease-out; }

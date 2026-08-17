@@ -125,7 +125,7 @@
     .panel {
       position: absolute; inset: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 22px; padding: 6vh 24px; text-align: center;
+      gap: 12px; padding: 6vh 24px; text-align: center;
       color: #e9f0e4; user-select: none; -webkit-user-select: none;
     }
 
@@ -176,7 +176,7 @@
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
       font-weight: 700;
       position: absolute; bottom: 22px; left: 0; right: 0;
-      font-size: 12px; letter-spacing: 0.18em; text-transform: lowercase; color: #6e7a6b;
+      font-size: 14px; letter-spacing: 0.18em; text-transform: lowercase; color: #6e7a6b;
     }
 
     .pill {
