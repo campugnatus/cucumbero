@@ -88,16 +88,36 @@
     } catch {}
   }
 
+  // Picture-in-picture draws in a browser surface above anything the page can
+  // put on screen, so a blocked video could be popped out and watched over the
+  // top of us. Same hole as fullscreen, which setMode already closes. Killing
+  // the window handles one that's already open; disablePictureInPicture takes
+  // the button out of Chrome's media hub and the video's context menu so it
+  // doesn't just get reopened. Only touch videos that weren't already opted
+  // out, so the page's own choice is restored intact.
+  const pipDisabled = new Set();
+
+  function blockPip() {
+    if (document.pictureInPictureElement) document.exitPictureInPicture?.().catch(() => {});
+    for (const video of document.querySelectorAll('video')) {
+      if (!video.disablePictureInPicture) {
+        video.disablePictureInPicture = true;
+        pipDisabled.add(video);
+      }
+    }
+  }
+
+  function restorePip() {
+    for (const video of pipDisabled) video.disablePictureInPicture = false;
+    pipDisabled.clear();
+  }
+
   function lockScroll(on) {
     const de = document.documentElement;
-    if (!de) return;
-    if (on && !scrollLocked) {
-      de.style.setProperty('overflow', 'hidden', 'important');
-      scrollLocked = true;
-    } else if (!on && scrollLocked) {
-      de.style.removeProperty('overflow');
-      scrollLocked = false;
-    }
+    if (!de || on === scrollLocked) return;
+    scrollLocked = on;
+    if (on) de.style.setProperty('overflow', 'hidden', 'important');
+    else de.style.removeProperty('overflow');
   }
 
   // --------------------------------------------------------------- build ----
@@ -323,6 +343,7 @@
 
     if (next === 'break') {
       lockScroll(false);
+      restorePip(); // the break hands the page back, popping out included
       host.style.setProperty('pointer-events', 'none', 'important');
       els.wrap.style.display = 'none';
       els.pill.style.display = 'block';
@@ -339,6 +360,7 @@
             document.exitFullscreen()?.catch(() => {});
           } catch {}
         }
+        blockPip();
       }
     }
     tick();
@@ -347,6 +369,7 @@
   function teardown() {
     mode = 'hidden';
     lockScroll(false);
+    restorePip();
     stopTicker();
     clearTimeout(nudgeTimer);
     observer?.disconnect();
@@ -396,6 +419,7 @@
 
     if (mode === 'blocking') {
       syncBreak();
+      blockPip(); // videos the page adds later, and any pop-out that slips through
       const left = endsAt - Date.now();
       paintClock(clock(left));
       // Once, not every tick: tell the worker the countdown is up, in case the
