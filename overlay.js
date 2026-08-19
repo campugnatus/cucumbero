@@ -112,12 +112,22 @@
     pipDisabled.clear();
   }
 
+  // Re-asserted on every tick rather than set once, because the lock lives in
+  // the DOM while the bookkeeping lives per-instance. An overlay orphaned by an
+  // extension reload still thinks it holds the lock, so its teardown clears one
+  // a fresh instance has since applied — and pages with their own scroll-lock
+  // logic can overwrite the style too. Setting it is idempotent, so re-checking
+  // costs a property read.
   function lockScroll(on) {
     const de = document.documentElement;
-    if (!de || on === scrollLocked) return;
-    scrollLocked = on;
-    if (on) de.style.setProperty('overflow', 'hidden', 'important');
-    else de.style.removeProperty('overflow');
+    if (!de) return;
+    if (on) {
+      if (de.style.overflow !== 'hidden') de.style.setProperty('overflow', 'hidden', 'important');
+      scrollLocked = true;
+    } else if (scrollLocked) {
+      de.style.removeProperty('overflow');
+      scrollLocked = false;
+    }
   }
 
   // --------------------------------------------------------------- build ----
@@ -419,6 +429,7 @@
 
     if (mode === 'blocking') {
       syncBreak();
+      lockScroll(true); // re-asserted: see the note on lockScroll
       blockPip(); // videos the page adds later, and any pop-out that slips through
       const left = endsAt - Date.now();
       paintClock(clock(left));
