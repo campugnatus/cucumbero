@@ -42,11 +42,16 @@ Click the icon:
 
 The overlay itself has one control:
 
-- **10-second break** — hides the overlay in *that tab only* so you can pause a
-  video or leave a call. A small pill in the corner counts you back down. Then
-  a 60-second cooldown, during which the button goes dim and does nothing;
-  press it anyway and it tells you why. The cooldown is session-wide rather
-  than per-tab, or you could just reopen the site in a new tab.
+- **10-second break** — lifts the overlay on *every* blocked tab so you can
+  pause a video or leave a call. A small pill in the corner counts you back
+  down. Then a 60-second cooldown, during which the button goes dim and does
+  nothing; press it anyway and it tells you why.
+
+  Both are session-wide. The cooldown has to be, or you could sidestep it by
+  reopening the site in a new tab — and once the cost is global, a per-tab
+  break just means paying it for one tab's worth of benefit. Restoring a window
+  where every YouTube tab starts playing as it gets focus was the case that
+  made the difference obvious.
 
 When the timer runs out every live overlay just fades away, and you get a system
 notification.
@@ -94,8 +99,8 @@ builds into a temp dir; nothing is written back into the repo.
   right past it. It's built to beat your reflexes, not your intent.
 - **Some pages can't be covered**: `chrome://*`, the Chrome Web Store, the PDF
   viewer, and other extensions' pages. Chrome forbids injection there.
-- **A break follows the tab, not the page.** Start a break, navigate to a
-  *different* blocked site in the same tab, and you keep the remaining seconds.
-  That's the cost of "let me pause this video and get out."
+- **A break lifts everything**, including tabs you weren't using and any blocked
+  site you open while it's running. Ten seconds, so the exposure is small, but
+  it isn't scoped to the tab you pressed it in.
 - **Audio keeps playing** behind the overlay on purpose — otherwise the break
   button would have nothing to do.

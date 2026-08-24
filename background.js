@@ -33,37 +33,28 @@ async function writeList(list) {
   await chrome.storage.local.set({ blocklist: list });
 }
 
-// Per-tab break expiry, kept in session storage so it survives worker eviction
-// but not a browser restart (a break shouldn't outlive the browser).
-async function readBreaks() {
-  const { breaks = {} } = await chrome.storage.session.get('breaks');
-  return breaks;
+// A break lifts every blocked tab at once, not just the one that asked for it.
+// The cooldown was already session-wide, so a per-tab break meant paying a
+// global price for a local benefit — and the case where you genuinely need two
+// tabs (a restored window where every YouTube tab starts playing as it gets
+// focus) was the case it handled worst.
+//
+// Both live in session storage, so they survive worker eviction but not a
+// browser restart: a break shouldn't outlive the browser.
+async function readBreak() {
+  const { breakUntil = 0 } = await chrome.storage.session.get('breakUntil');
+  return breakUntil > Date.now() ? breakUntil : 0;
 }
 
-async function breakUntil(tabId) {
-  const breaks = await readBreaks();
-  const until = breaks[String(tabId)] || 0;
-  return until > Date.now() ? until : 0;
-}
-
-// When the next break may be taken, session-wide. 0 means "right now".
+// When the next break may be taken. 0 means "right now".
 async function breakReadyAt() {
   const { nextBreakAt = 0 } = await chrome.storage.session.get('nextBreakAt');
   return nextBreakAt;
 }
 
-async function setBreak(tabId, until) {
-  const breaks = await readBreaks();
-  const now = Date.now();
-  for (const [k, v] of Object.entries(breaks)) if (v <= now) delete breaks[k];
-  if (until) breaks[String(tabId)] = until;
-  else delete breaks[String(tabId)];
-  await chrome.storage.session.set({ breaks });
-}
-
 // Every session boundary starts the break allowance fresh.
 async function resetBreaks() {
-  await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
+  await chrome.storage.session.set({ breakUntil: 0, nextBreakAt: 0 });
 }
 
 // --------------------------------------------------------------- entries ----
@@ -250,7 +241,7 @@ async function showOverlay(tabId, session) {
   const message = {
     type: 'CUCUMBERO_SHOW',
     endsAt: session.endsAt,
-    breakUntil: await breakUntil(tabId), // a break survives navigation within the tab
+    breakUntil: await readBreak(), // so a tab opened mid-break is quiet too
     breakMs: BREAK_MS,
     breakReadyAt: await breakReadyAt(),
   };
@@ -366,10 +357,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   await evaluateTab(tabId, url);
 });
 
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  await setBreak(tabId, 0);
-});
-
 // ------------------------------------------------------------- messaging ----
 
 const handlers = {
@@ -410,23 +397,22 @@ const handlers = {
     return { blocklist: next };
   },
 
-  // From an overlay: give this tab BREAK_MS of peace, if it's owed one.
-  async TAKE_BREAK(_payload, sender) {
-    const tabId = sender?.tab?.id;
-    if (tabId == null) return { error: 'no tab' };
+  // From an overlay: BREAK_MS of peace everywhere, if one is owed.
+  async TAKE_BREAK() {
     const now = Date.now();
     const readyAt = await breakReadyAt();
     if (now < readyAt) return { denied: true, breakReadyAt: readyAt };
 
     const until = now + BREAK_MS;
-    await setBreak(tabId, until);
-    await chrome.storage.session.set({ nextBreakAt: until + BREAK_COOLDOWN_MS });
+    await chrome.storage.session.set({ breakUntil: until, nextBreakAt: until + BREAK_COOLDOWN_MS });
+    await sweepAllTabs(); // every blocked tab steps aside, not just this one
     return { breakUntil: until, breakReadyAt: until + BREAK_COOLDOWN_MS };
   },
 
-  async END_BREAK(_payload, sender) {
-    const tabId = sender?.tab?.id;
-    if (tabId != null) await setBreak(tabId, 0);
+  // Each overlay reports its own countdown ending; whichever gets here first
+  // clears it, and the rest are no-ops.
+  async END_BREAK() {
+    await chrome.storage.session.set({ breakUntil: 0 });
     return { ok: true };
   },
 
