@@ -80,7 +80,14 @@ python3 tools/preview.py --open   # the popup in a normal tab, no extension relo
 python3 tools/preview.py --shot   # ...or screenshot its three states
 python3 tools/make-icons.py       # regenerate the icons from the 🥒 glyph
 node tools/test-matching.js       # blocklist matching rules
+python3 tools/package.py          # build dist/cucumbero-<version>.zip for upload
 ```
+
+`package.py` ships an explicit allowlist rather than excluding things, so a
+stray file in the working tree can't end up in a public upload. The risk of an
+allowlist is forgetting to add something, so it reads what it's shipping and
+follows the paths inside it — a font or script referenced but not listed fails
+the build rather than 404ing in the store version.
 
 The matching tests are the only ones here, because that's the only logic where
 a mistake hides: over-blocking is obvious and annoying, under-blocking means a
