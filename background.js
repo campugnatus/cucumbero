@@ -148,10 +148,11 @@ async function startSession(durationMs) {
 // tone. Kept short — notification bodies get clipped at two lines.
 const DONE_LINES = [
   'You can breathe now',
-  'Take a breath. Stay fresh. As cucumbers do',
-  'You can take a break now. Maybe snack on a cucumber',
   'The internet survived without you',
-  'The cucumber is proud of you'
+  "The cucumber is proud of you",
+  'Well pickled 🥒',
+  'How did it go?',
+  'Whew! Back to scrolling now',
 ];
 
 // Random, but never the same line twice running.
@@ -199,7 +200,7 @@ async function endSessionOnce(reason) {
       // The notification API reserves the icon slot whether or not you fill it,
       // so fill it: the 🥒 glyph on transparency, no plate behind it.
       iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
-      title: 'Your session has finished',
+      title: 'Your focusing session is over',
       message: await pickLine(),
       priority: 2,
     };
