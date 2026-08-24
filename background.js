@@ -66,39 +66,63 @@ async function resetBreaks() {
   await chrome.storage.session.set({ breaks: {}, nextBreakAt: 0 });
 }
 
-// --------------------------------------------------------------- domains ----
+// --------------------------------------------------------------- entries ----
+//
+// An entry is "host" or "host/path". The host rule is the same either way —
+// that host or anything under it — and a path, when given, additionally
+// requires the URL to sit under it. So google.com/maps leaves mail.google.com
+// alone, while reddit.com/r/rust still catches old.reddit.com/r/rust, because
+// the host half never stopped matching subdomains. More URL means more
+// specific, which is the intuition people already have, and there's no syntax
+// to learn: you paste the part of the address you're avoiding.
 
-// Accepts anything vaguely URL-shaped and returns a bare registrable-ish host,
-// or null if there's nothing usable in there.
-function normalizeDomain(raw) {
+// Accepts anything vaguely URL-shaped, or null if there's nothing usable in it.
+function normalizeEntry(raw) {
   if (!raw) return null;
   let s = String(raw).trim().toLowerCase();
   s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, ''); // scheme
   s = s.replace(/^[^/@]*@/, ''); // userinfo
-  s = s.split(/[/?#]/)[0]; // path, query, fragment
-  s = s.replace(/:\d+$/, ''); // port
-  s = s.replace(/^www\./, '');
-  s = s.replace(/^\.+|\.+$/g, '');
-  if (!s || !/^[a-z0-9.-]+$/.test(s)) return null;
-  if (!s.includes('.') && s !== 'localhost') return null;
-  return s;
+  s = s.split(/[?#]/)[0]; // query and fragment are per-visit, not per-site
+
+  const slash = s.indexOf('/');
+  let host = slash === -1 ? s : s.slice(0, slash);
+  const path = slash === -1 ? '' : s.slice(slash).replace(/\/+$/, '');
+
+  host = host
+    .replace(/:\d+$/, '') // port
+    .replace(/^www\./, '')
+    .replace(/^\.+|\.+$/g, '');
+
+  if (!host || !/^[a-z0-9.-]+$/.test(host)) return null;
+  if (!host.includes('.') && host !== 'localhost') return null;
+  return host + path;
 }
 
-function hostMatches(host, domain) {
-  return host === domain || host.endsWith('.' + domain);
+function entryMatches(host, path, entry) {
+  const slash = entry.indexOf('/');
+  const domain = slash === -1 ? entry : entry.slice(0, slash);
+  if (host !== domain && !host.endsWith('.' + domain)) return false;
+  if (slash === -1) return true; // no path given: the whole site
+
+  // Segment boundary, so /maps covers /maps and /maps/10277 but never
+  // /mapsomething.
+  const prefix = entry.slice(slash);
+  return path === prefix || path.startsWith(prefix + '/');
 }
 
 function urlIsBlocked(url, list) {
   if (!url || !list.length) return false;
   let host;
+  let path;
   try {
     const u = new URL(url);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     host = u.hostname.toLowerCase();
+    path = u.pathname.toLowerCase().replace(/\/+$/, '');
   } catch {
     return false;
   }
-  return list.some((d) => hostMatches(host, d));
+  return list.some((entry) => entryMatches(host, path, entry));
 }
 
 // -------------------------------------------------------------- sessions ----
@@ -329,16 +353,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
+// This covers single-page-app navigation too, so there's no webNavigation
+// listener and no webNavigation permission — which is what would otherwise put
+// "Read your browsing history" in the install prompt. Verified on YouTube:
+// clicking from a video to the home page fires this with changeInfo.url set and
+// status 'loading', slightly *before* webNavigation.onHistoryStateUpdated would
+// have. Later events for the same navigation arrive with no url, hence the
+// guard, and the ones with status 'complete' fall back to tab.url.
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!changeInfo.url && changeInfo.status !== 'loading' && changeInfo.status !== 'complete') return;
   const url = changeInfo.url || tab.url || tab.pendingUrl;
   await evaluateTab(tabId, url);
-});
-
-// Single-page-app navigations (YouTube, Reddit, Twitter) never fire a real load.
-chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
-  if (details.frameId !== 0) return;
-  await evaluateTab(details.tabId, details.url);
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -366,7 +391,7 @@ const handlers = {
   },
 
   async ADD_SITE({ domain }) {
-    const d = normalizeDomain(domain);
+    const d = normalizeEntry(domain);
     if (!d) return { error: "That doesn't look like a domain." };
     const list = await readList();
     if (list.includes(d)) return { blocklist: list, already: true, domain: d };

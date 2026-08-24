@@ -2,14 +2,13 @@
   "manifest_version": 3,
   "name": "cucumbero",
   "version": "1.0.0",
-  "description": "Covers your time-sink sites with a polite black rectangle until the timer runs out.",
+  "description": "Simple productivity timer and website blocker to help you focus",
   "permissions": [
     "storage",
     "tabs",
     "scripting",
     "alarms",
-    "notifications",
-    "webNavigation"
+    "notifications"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {

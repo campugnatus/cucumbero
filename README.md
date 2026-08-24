@@ -21,6 +21,17 @@ Click the icon:
 - **Block field** — pre-filled with the domain of the tab you're on, so blocking
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.
+
+  You can paste a path to narrow it, and the more URL you give, the more
+  specific the rule: `google.com/maps` covers that section without touching
+  `mail.google.com` or `google.com` itself. The host half of the rule doesn't
+  change, though, so `reddit.com/r/rust` still catches `old.reddit.com/r/rust`.
+  Prefixes stop at segment boundaries — `/maps` never matches `/mapsomething` —
+  and query strings are dropped, being per-visit rather than per-site, so
+  pasting a video URL leaves you with `youtube.com/watch`.
+
+  The field still pre-fills with the bare domain, so blocking a whole site stays
+  a one-click job and narrowing is something you opt into by typing more.
 - **Blocklist** — expands; the `×` buttons work only when no session is running.
 - **Start session** — every open, new, or navigated-to tab on a blocked domain
   gets the overlay immediately.
@@ -63,7 +74,13 @@ host, and a `MutationObserver` puts it back if the page removes the node.
 python3 tools/preview.py --open   # the popup in a normal tab, no extension reload
 python3 tools/preview.py --shot   # ...or screenshot its three states
 python3 tools/make-icons.py       # regenerate the icons from the 🥒 glyph
+node tools/test-matching.js       # blocklist matching rules
 ```
+
+The matching tests are the only ones here, because that's the only logic where
+a mistake hides: over-blocking is obvious and annoying, under-blocking means a
+site you asked to be kept from quietly works. The lookalike cases
+(`notreddit.com`, `reddit.com.evil.net`) are the ones to keep.
 
 `preview.py` serves the real `popup.html/css/js` and fakes only the `chrome.*`
 calls (`tools/preview-stub.js`), so it renders exactly what the extension does —
