@@ -20,6 +20,7 @@
   const FONT_FAMILY = 'CucumberoNunito';
   // Shown on the button itself when you press it during the cooldown.
   const COOLDOWN_NUDGE = 'One break a minute';
+  const VEIL_COLOR = '#0c0e0c';
 
   let host = null;
   let root = null;
@@ -132,6 +133,79 @@
 
   // --------------------------------------------------------------- build ----
 
+  // Kept as readable markup and encoded below, because the escaped form is the
+  // part you'd actually want to fiddle with. fractalNoise *is* Perlin noise:
+  // baseFrequency is the scale (0.004 for big soft shapes, 0.05 for busy
+  // marble), numOctaves is how much fine detail rides on top, and the colour
+  // matrix drops the rainbow speckle raw turbulence produces. One big tile
+  // scaled to cover, since at this scale a repeat shows its grid.
+  const VEIL_NOISE = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
+      <filter id="n">
+        <feTurbulence type="fractalNoise" baseFrequency="0.005" numOctaves="1" seed="${Math.random()*10}"/>
+        <feColorMatrix type="saturate" values="0"/>
+        <feComponentTransfer>
+          <feFuncR type="discrete" tableValues="0 0.25 0.5 0.75 1"/>
+          <feFuncG type="discrete" tableValues="0 0.25 0.5 0.75 1"/>
+          <feFuncB type="discrete" tableValues="0 0.25 0.5 0.75 1"/>
+        </feComponentTransfer>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#n)" opacity="0.07"/>
+    </svg>`;
+
+  const VEIL_NOISE2 = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
+      <defs>
+        <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse">
+          <path d="M0 7 L7 0" stroke="#fff" stroke-width="0.6"/>
+        </pattern>
+        <filter id="warp">
+          <feTurbulence type="fractalNoise" baseFrequency="0.004" numOctaves="2" seed="6" result="t"/>
+          <feDisplacementMap in="SourceGraphic" in2="t" scale="70" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#hatch)" filter="url(#warp)" opacity="0.05"/>
+    </svg>
+  `
+
+  // Contour lines over the turbulence landscape. Quantising into bands gives
+  // filled regions, not lines; a contour is the *boundary* where the surface
+  // crosses a level. So: slice the value range into 48 slots and light every
+  // 8th, and each lit slot is one thin ribbon following that level.
+  //
+  // baseFrequency sizes the landscape, the spacing of the 1s sets how many
+  // lines, stdDeviation softens their edges (discrete steps have no
+  // antialiasing of their own), and opacity sets the strength.
+  //
+  // Small tile scaled up by background-size: long discrete tables are slow to
+  // rasterise — 80 entries at 600x400 hung the renderer outright — and the
+  // lines only get softer on the way up.
+  const CONTOURS = Array.from({ length: 48 }, (_, i) => (i % 8 ? 0 : 1)).join(' ');
+
+  const VEIL_NOISE3 = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+      <filter id="n">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="1" seed="6"/>
+        <feColorMatrix type="saturate" values="0"/>
+        <!-- turbulence randomises alpha too, which mushes everything -->
+        <feComponentTransfer><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer>
+        <feComponentTransfer>
+          <feFuncR type="discrete" tableValues="${CONTOURS}"/>
+          <feFuncG type="discrete" tableValues="${CONTOURS}"/>
+          <feFuncB type="discrete" tableValues="${CONTOURS}"/>
+        </feComponentTransfer>
+        <feGaussianBlur stdDeviation="1.2"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#n)" opacity="0.15"/>
+    </svg>`;
+
+  const VEIL_NOISE_URL =
+    'data:image/svg+xml,' + encodeURIComponent(VEIL_NOISE.replace(/\s+/g, ' ').trim());
+  const VEIL_NOISE_URL2 =
+    'data:image/svg+xml,' + encodeURIComponent(VEIL_NOISE2.replace(/\s+/g, ' ').trim());
+  const VEIL_NOISE_URL3 =
+    'data:image/svg+xml,' + encodeURIComponent(VEIL_NOISE3.replace(/\s+/g, ' ').trim());
+
   const CSS = `
     :host { all: initial; }
     * { box-sizing: border-box; margin: 0; }
@@ -147,9 +221,20 @@
 
     .veil {
       position: absolute; inset: 0;
-      background: rgba(6, 10, 6, 0.93);
-      backdrop-filter: blur(3px) saturate(0.4);
-      -webkit-backdrop-filter: blur(3px) saturate(0.4);
+      background: rgba(6, 8, 6, 0.94);
+      backdrop-filter: blur(5px) saturate(0.4);
+    }
+
+    /* Opaque, not translucent: motion is preattentive, so a still image showing
+       through at 7% is invisible while a moving one still catches the eye — and
+       blurring preserves exactly the low-frequency movement that does the
+       catching. Nothing shows through now, so there's no backdrop-filter either;
+       it would have been re-filtering a hidden backdrop every frame of video. */
+    .veil2 {
+      position: absolute; inset: 0;
+      background-color: ${VEIL_COLOR};
+      background-image: url("${VEIL_NOISE_URL3}");
+      background-size: cover;
     }
 
     .panel {
@@ -168,7 +253,7 @@
 
     .clock {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
-      font-size: clamp(46px, 11vw, 96px); font-weight: 800; line-height: 1;
+      font-size: clamp(46px, 11vw, 88px); font-weight: 800; line-height: 1;
       color: #7cc243;
     }
     /* Nunito's digits share one advance (0.6em); the cells match it exactly and

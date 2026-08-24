@@ -100,7 +100,7 @@ header {
 }
 .step:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
 .step:active:not(:disabled) { background: rgba(61, 138, 92, 0.1); }
-.step:disabled { color: transparent; cursor: not-allowed; }
+.step:disabled { background: #f5f5f5; color: #bbb; cursor: not-allowed; }
 
 .amount {
   flex: 1;
