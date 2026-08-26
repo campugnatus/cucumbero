@@ -134,7 +134,13 @@ async function refresh() {
 
 const STEP = 15; // the +/- buttons work in quarter hours
 const MIN_TYPED = 1; // you can type a 1-minute session; the buttons won't go there
-const MAX_MIN = 720;
+// 24 hours, which is 96 quarter-hours exactly, so the +/- grid reaches it
+// without clamping to an off-grid value on the last press. Past a day you want
+// a schedule rather than a timer, and this deliberately isn't that. The worker
+// clamps to the same number — raise one without the other and the popup accepts
+// a length the worker won't run, leaving the countdown disagreeing with what
+// you typed.
+const MAX_MIN = 1440;
 // The last length actually started, seeded at boot; 45 until there's a session
 // to learn from. Stands in wherever the field holds nothing usable — you
 // probably want the same length again.
@@ -177,7 +183,7 @@ el.minus.addEventListener('click', () => stepBy(-1));
 el.plus.addEventListener('click', () => stepBy(1));
 
 el.minutes.addEventListener('input', () => {
-  const digits = el.minutes.value.replace(/\D+/g, '').slice(0, 3);
+  const digits = el.minutes.value.replace(/\D+/g, '').slice(0, 4); // 1440 is four
   if (digits !== el.minutes.value) el.minutes.value = digits;
   syncStepper();
 });
@@ -189,18 +195,16 @@ el.minutes.addEventListener('keydown', (e) => {
 });
 
 el.go.addEventListener('click', async () => {
-  if (!state.blocklist.length) {
-    // Refused rather than allowed as a bare timer, because of who hits this:
-    // someone with an empty list is almost always a first-timer, and a session
-    // that blocks nothing looks identical to an extension that doesn't work.
-    say('Add at least one site first, or this does nothing.');
-    el.input.focus();
-    return;
-  }
   const minutes = commitMinutes();
   const res = await send('START', { durationMs: minutes * 60_000 });
   if (res.error) return say(res.error);
-  say('');
+
+  // Starts either way — an empty list makes this a plain timer, which is a
+  // reasonable thing to want. But it says so, because a session that blocks
+  // nothing is indistinguishable from an extension that isn't working, and
+  // whoever hits this is usually someone who hasn't set it up yet.
+  say(state.blocklist.length ? '' : 'Your blocklist is empty. Add something!');
+
   await refresh();
 });
 
@@ -277,6 +281,9 @@ async function addSite() {
   render();
 }
 
+// Two handlers rather than a <form>: a form would give Enter for free, but an
+// unprevented submit in a popup reloads the page and loses everything, and
+// that's a worse thing to get wrong than an extra listener is to maintain.
 el.add.addEventListener('click', addSite);
 el.input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') addSite();

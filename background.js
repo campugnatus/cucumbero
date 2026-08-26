@@ -368,7 +368,9 @@ const handlers = {
   },
 
   async START({ durationMs }) {
-    const ms = Math.max(60_000, Math.min(12 * 60 * 60_000, Number(durationMs) || 0));
+    // One minute to a day. The upper bound has to match MAX_MIN in popup.js, or
+    // the popup will happily accept a length this quietly refuses to run.
+    const ms = Math.max(60_000, Math.min(24 * 60 * 60_000, Number(durationMs) || 0));
     const session = await startSession(ms);
     return { session };
   },
