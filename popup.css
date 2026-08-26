@@ -71,15 +71,6 @@ header {
   color: var(--dim);
   text-transform: lowercase;
 }
-.state {
-  margin-left: auto;
-  font-size: 10.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.state.on { color: var(--green); }
-
 /* ----------------------------------------------------------- stepper ---- */
 
 .stepper {
@@ -190,6 +181,10 @@ header {
   transition: all 0.13s ease;
 }
 .secondary:hover { border-color: var(--green-dim); color: var(--green); }
+/* The Block button turns into an inert "Blocked" once the typed site is on the
+   list — dimming belongs here rather than as an inline style set from JS. */
+.secondary:disabled { opacity: 0.5; cursor: default; }
+.secondary:disabled:hover { border-color: var(--line); color: var(--dim); }
 
 /* ------------------------------------------------------------ active ---- */
 
@@ -267,8 +262,13 @@ header {
 #site-input:focus { border-color: var(--green-dim); }
 #site-input::placeholder { color: var(--faint); }
 
+/* Its own band across the foot of the popup rather than part of the blocklist,
+   since errors come from the duration and Go path too. Tinting it is free:
+   :empty hides the whole thing whenever there's nothing to say. */
 .status {
-  margin: 6px 2px 0;
+  padding: 10px 14px;
+  background: #f7e3df;
+  border-top: 1px solid #e6c9c3;
   font-size: 11.5px;
   line-height: 1.35;
   color: var(--red);
@@ -304,15 +304,21 @@ header {
   font-variant-numeric: tabular-nums;
 }
 
-ul {
-  list-style: none;
-  max-height: 200px;
-  overflow-y: auto;
+/* The card is the wrapper, not the list: with the border on the ul, an empty
+   blocklist drew an empty white box with the message stranded underneath. */
+#list-wrap {
   background-color: var(--panel);
   border: 1px solid var(--line);
   padding: 10px;
   border-radius: 9px;
   margin-bottom: 12px;
+}
+
+ul {
+  list-style: none;
+  padding: 0; /* the UA's 40px indent for list markers, which we don't have */
+  max-height: 200px;
+  overflow-y: auto;
 }
 li {
   display: flex;
@@ -342,8 +348,12 @@ li button svg { display: block; width: 9px; height: 9px; }
 li button:hover:not(:disabled) { color: #fff; background: var(--red); }
 li button:disabled { opacity: 0.3; cursor: not-allowed; }
 
+/* Sits inside the card now, so it reads as the list's empty state rather than
+   as a note underneath an empty box. */
 .hint {
-  margin: 6px 2px 2px;
+  margin: 0;
+  padding: 6px 2px;
+  text-align: center;
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--faint);

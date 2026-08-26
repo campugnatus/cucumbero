@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "cucumbero",
   "version": "1.0.0",
-  "description": "Simple productivity timer and website blocker to help you focus",
+  "description": "Timer and website blocker to help you focus",
   "permissions": [
     "storage",
     "tabs",

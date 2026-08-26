@@ -12,7 +12,6 @@ const el = {
   viewActive: $('view-active'),
   clock: $('clock'),
   stop: $('stop-hold'),
-  stateChip: $('state-chip'),
   input: $('site-input'),
   add: $('add'),
   status: $('status'),
@@ -67,8 +66,6 @@ function render() {
 
   el.viewIdle.hidden = active;
   el.viewActive.hidden = !active;
-  el.stateChip.textContent = active ? '' : '';
-  el.stateChip.classList.toggle('on', active);
 
   el.count.textContent = String(state.blocklist.length);
   el.list.innerHTML = '';
@@ -98,7 +95,7 @@ function render() {
   // × buttons carry a title attribute instead.
   el.empty.hidden = state.blocklist.length !== 0;
 
-  syncInputAffordance();
+  syncAddButton();
   tick();
 }
 
@@ -193,6 +190,9 @@ el.minutes.addEventListener('keydown', (e) => {
 
 el.go.addEventListener('click', async () => {
   if (!state.blocklist.length) {
+    // Refused rather than allowed as a bare timer, because of who hits this:
+    // someone with an empty list is almost always a first-timer, and a session
+    // that blocks nothing looks identical to an extension that doesn't work.
     say('Add at least one site first, or this does nothing.');
     el.input.focus();
     return;
@@ -255,15 +255,16 @@ el.go.addEventListener('click', async () => {
 
 // -------------------------------------------------------------- add site ----
 
-function syncInputAffordance() {
+// Named for what it updates: the Block button, not the input it reads from.
+// It goes inert and reads "Blocked" once what's typed is already on the list.
+function syncAddButton() {
   const typed = el.input.value.trim().toLowerCase().replace(/^www\./, '');
   const known = typed && state.blocklist.some((d) => d === typed);
   el.add.textContent = known ? 'Blocked' : 'Block';
   el.add.disabled = !!known;
-  el.add.style.opacity = known ? '0.5' : '';
 }
 
-el.input.addEventListener('input', syncInputAffordance);
+el.input.addEventListener('input', syncAddButton);
 
 async function addSite() {
   const raw = el.input.value.trim();
@@ -314,7 +315,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   } catch {
     /* chrome://, new tab, etc. — leave the field empty */
   }
-  syncInputAffordance();
+  syncAddButton();
   syncStepper();
 
   // Open with the duration selected so you can type over it and hit Enter.

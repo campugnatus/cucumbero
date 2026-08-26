@@ -9,7 +9,6 @@
     <header>
       <span class="logo">🥒</span>
       <span class="wordmark">cucumbero</span>
-      <span class="state" id="state-chip"></span>
     </header>
 
     <!-- ------------------------------------------------------- idle ---- -->
@@ -51,6 +50,8 @@
         <span>Blocklist</span>
         <span class="count" id="list-count">0</span>
       </button>
+      <!-- #list-wrap is the card, not the ul: with the border on the list, an
+           empty blocklist rendered as an empty box with the message under it. -->
       <div id="list-wrap" hidden>
         <ul id="list"></ul>
         <p class="hint" id="list-empty" hidden>Nothing blocked yet. Add the site you're on.</p>
@@ -60,8 +61,12 @@
         <input id="site-input" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" />
         <button id="add" class="secondary" type="button">Block</button>
       </div>
-      <div class="status" id="status"></div>
     </section>
+
+    <!-- Its own section: errors come from the duration and Go path as much as
+         from the blocklist. role=status gets them announced rather than just
+         appearing. -->
+    <div class="status" id="status" role="status"></div>
 
     <script src="popup.js"></script>
   </body>

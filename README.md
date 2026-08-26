@@ -64,6 +64,12 @@ notification.
 | `overlay.js` | Injected on demand into blocked tabs only. Closed shadow DOM. |
 | `popup.html/css/js` | The popup. A dumb client of the worker. |
 | `fonts/` | Nunito as one variable face (latin subset, weights 200–1000) for the wordmark, the duration field, the overlay title and both countdowns. Bundled, so nothing is fetched over the network and it works offline. SIL OFL 1.1, see `fonts/OFL-Nunito.txt`. |
+| `icons/` | Rendered from the 🥒 glyph of Noto Color Emoji by `tools/make-icons.py`. |
+
+The icons are renders of Noto Color Emoji artwork, © Google Inc. 2013–2017,
+Apache License 2.0. The font itself is SIL OFL 1.1, but that only governs
+distributing the font software — these are images produced with it, so no font
+files ship here and no OFL notice is required for them.
 
 Session state is a wall-clock `endsAt` timestamp in `chrome.storage.local` plus a
 `chrome.alarms` timer, so an MV3 worker eviction or a browser restart can't end

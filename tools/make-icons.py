@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Regenerate the extension icons from the 🥒 glyph.
 
+The artwork is Noto Color Emoji, © Google Inc. 2013-2017, Apache License 2.0.
+These are renders rather than the font itself, so nothing here redistributes
+font software — but the Apache notice travels with the derivative, hence this.
+
 Everything is the same cucumber on transparency — the toolbar sizes get a hair
 of padding, the notification icon gets more because the daemon draws it large.
 
