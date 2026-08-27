@@ -21,6 +21,18 @@
   // Shown on the button itself when you press it during the cooldown.
   const COOLDOWN_NUDGE = 'One break a minute';
 
+  // Drawn instead of the 🥒 character, which the OS renders from whatever emoji
+  // font it has — Windows supplied a different cucumber from the one in the
+  // toolbar. Guarded because a throw out here would take the whole script with
+  // it, listener included; an empty url simply doesn't paint.
+  const ICON_URL = (() => {
+    try {
+      return chrome.runtime.getURL('icons/cucumber.png');
+    } catch {
+      return '';
+    }
+  })();
+
   let host = null;
   let els = {};
   let endsAt = 0;
@@ -240,6 +252,17 @@
        The colour transition on the button rule above makes the swap fade in. */
     .brk.nudge { color: #9fb197; }
 
+    /* A pseudo-element, so the pill's per-tick textContent write doesn't have to
+       rebuild it. Sized in em to track whatever font-size it sits next to. */
+    .brand::before, .pill::before {
+      content: '';
+      display: inline-block;
+      width: 1.6em; height: 1.6em;
+      margin-right: 0.35em;
+      vertical-align: -0.5em;
+      background: url("${ICON_URL}") center / contain no-repeat;
+    }
+
     .brand {
       font-family: ${FONT_FAMILY}, ui-rounded, system-ui, sans-serif;
       font-weight: 700;
@@ -319,7 +342,7 @@
       '<div class="actions">' +
       '<button class="brk" type="button"><span class="brk-label"></span></button>' +
       '</div>' +
-      '<div class="brand">🥒 cucumbero</div>' +
+      '<div class="brand">cucumbero</div>' +
       '</div>';
 
     const pill = document.createElement('div');
@@ -520,7 +543,7 @@
         setMode('blocking');
         return;
       }
-      els.pill.textContent = `🥒 back in ${Math.ceil(left / 1000)}s`;
+      els.pill.textContent = `back in ${Math.ceil(left / 1000)}s`;
       return;
     }
 

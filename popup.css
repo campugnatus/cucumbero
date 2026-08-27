@@ -62,7 +62,9 @@ header {
   padding: 14px;
   padding-bottom: 6px;
 }
-.logo { font-size: 15px; }
+/* block, so no inline baseline gap sits under the image and throws the header's
+   centring off. */
+.logo { display: block; width: 22px; height: 22px; }
 .wordmark {
   font-family: Nunito, ui-rounded, system-ui, sans-serif;
   font-weight: 700;
