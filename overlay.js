@@ -246,7 +246,32 @@
     host.style.cssText =
       `all: initial !important; position: fixed !important; inset: 0 !important;` +
       `z-index: ${Z} !important; display: block !important; visibility: visible !important;` +
-      `opacity: 1 !important; pointer-events: auto !important;`;
+      `opacity: 1 !important; pointer-events: auto !important;` +
+      // A view transition paints its pseudo-element tree in the top layer, which
+      // outranks any z-index we can set, the way a modal dialog does. Every
+      // element the page named is captured as its own group above the root
+      // snapshot — and an overlay without a name of its own sits inside that
+      // root snapshot, underneath, so the page's UI draws over the veil for the
+      // length of the transition. YouTube runs one when the watch page settles
+      // into its real layout, and its spinner and player buttons came through.
+      //
+      // Naming ourselves makes us a participant instead: groups paint in capture
+      // order, capture follows paint order, and a fixed element at the top of the
+      // z-order is captured last, so ours lands above the page's. Inert whenever
+      // no transition is running. For the ~300ms one does run we're a snapshot,
+      // so the clock holds still and clicks land on the page's root — both too
+      // brief to notice, and neither lets anything through.
+      //
+      // Our group picks up the UA's own animations, which are visible in exactly
+      // two cases: the viewport changing size across a transition, which morphs
+      // the group and leaves a strip at the edge, and the overlay appearing
+      // mid-transition, which fades it in from transparent. Both were left
+      // alone. What shows through either way is the frozen snapshot, not a live
+      // page, and in the second case the transition was already showing a
+      // snapshot taken before we existed. A stylesheet zeroing those durations
+      // fixed neither case fully and cost a style element in someone else's
+      // document, re-asserted every tick.
+      `view-transition-name: cucumbero-overlay !important;`;
 
     root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
