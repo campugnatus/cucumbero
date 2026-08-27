@@ -411,12 +411,13 @@
     mode = next;
     if (!host) return;
 
-    if (next === 'hidden') {
-      lockScroll(false);
-      host.style.setProperty('display', 'none', 'important');
-      return;
-    }
-
+    // The two branches below are exhaustive: going quiet is teardown's job, and
+    // it removes the host rather than hiding it. 'hidden' and 'fading' are still
+    // modes, but both are set directly by whoever enters them — 'hidden' so the
+    // observer knows not to re-append what teardown just took out. A third mode
+    // arriving here would match neither and leave the overlay as it was, which
+    // is the better failure: stuck where you can see it, rather than quietly
+    // blocking under a mode that never meant to.
     host.style.setProperty('display', 'block', 'important');
 
     if (next === 'break') {
@@ -426,22 +427,20 @@
       host.style.setProperty('pointer-events', 'none', 'important');
       els.wrap.style.display = 'none';
       els.pill.style.display = 'block';
-    } else {
+    } else if (next === 'blocking') {
+      lockScroll(true);
+      setBlur(true); // back on after a break, and undoes a fade we overtook
       host.style.setProperty('pointer-events', 'auto', 'important');
       els.wrap.style.display = 'block';
       els.pill.style.display = 'none';
-      if (next === 'blocking') {
-        lockScroll(true);
-        setBlur(true); // back on after a break, and undoes a fade we overtook
-        els.wrap.classList.remove('fade');
-        // A fullscreen video sits in the top layer, above any z-index we can set.
-        if (document.fullscreenElement) {
-          try {
-            document.exitFullscreen()?.catch(() => {});
-          } catch {}
-        }
-        blockPip();
+      els.wrap.classList.remove('fade');
+      // A fullscreen video sits in the top layer, above any z-index we can set.
+      if (document.fullscreenElement) {
+        try {
+          document.exitFullscreen()?.catch(() => {});
+        } catch {}
       }
+      blockPip();
     }
     tick();
   }
