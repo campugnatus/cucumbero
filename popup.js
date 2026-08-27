@@ -239,15 +239,19 @@ el.go.addEventListener('click', async () => {
     start = performance.now();
     b.classList.add('armed');
     b.classList.remove('releasing');
+    // Set once, not per frame. The fill is the progress indicator; a countdown
+    // beside it says the same thing in a second notation you have to read, and
+    // its digits changed width on fonts without tabular figures, so a centred
+    // label twitched on every tick.
+    label.textContent = 'keep holding…';
     try {
       b.setPointerCapture(e.pointerId);
     } catch {}
     const step = async () => {
-      const held = performance.now() - start;
-      const pct = Math.min(1, held / HOLD_MS);
+      const pct = Math.min(1, (performance.now() - start) / HOLD_MS);
       fill.style.width = pct * 100 + '%';
-      label.textContent = pct >= 1 ? 'ok, fine.' : `keep holding… ${((HOLD_MS - held) / 1000).toFixed(1)}s`;
       if (pct >= 1) {
+        label.textContent = 'ok, fine.';
         raf = null;
         await send('STOP');
         reset();
