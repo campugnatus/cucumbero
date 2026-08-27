@@ -73,6 +73,15 @@
   // document-scoped, so the face has to be added to the page's own font set. A
   // strict page CSP can still refuse the fetch — then the fallback stack stands
   // in, which is why the digit cells exist.
+  //
+  // Alone among what we put on the page, this survives teardown. Removing it
+  // there would race its own add: the add is async, so a teardown mid-load
+  // deletes nothing and the add lands on a page with no overlay left. And with
+  // font-display: block, re-adding the face would leave the next overlay in this
+  // tab painting invisible for a beat while it reloads — on a blocklist entry
+  // with a path, that's every navigation back into it. So it stays, and
+  // __cucumberoFont stays with it: clearing the flag without deleting the face
+  // would stack a second copy on the next build.
   function loadFont() {
     if (window.__cucumberoFont || typeof FontFace !== 'function' || !document.fonts) return;
     window.__cucumberoFont = true;
@@ -387,9 +396,30 @@
     host = null;
     root = null;
     els = {};
-    // window.__cucumbero stays set on purpose: the message listener below is
-    // still live and will rebuild on demand, so a re-inject would only add a
-    // duplicate listener.
+
+    // Nothing of ours runs past this line: host, observer, ticker, nudge timer,
+    // scroll lock and PiP override are all released above. The listener and the
+    // window marker go too, which leaves nothing referencing this closure, so
+    // the isolated world can collect it. Chrome won't unload the script itself —
+    // no extension can un-inject — and an uninstall only invalidates the context
+    // rather than clearing the page, so leaving it inert and unreferenced is as
+    // far as this goes.
+    //
+    // The two have to go together. Drop the listener alone and the next inject
+    // finds the marker still there, the guard up top sees alive() — the context
+    // is fine, it's only this instance that's spent — and returns early without
+    // registering one, leaving the tab deaf for the rest of its life.
+    //
+    // Cheap to undo: showOverlay messages before it injects, so a torn-down tab
+    // costs one executeScript the next time it needs covering.
+    //
+    // The font face is the one thing left behind on purpose — see loadFont.
+    try {
+      chrome.runtime.onMessage.removeListener(onMessage);
+    } catch {
+      /* already invalidated — a reload orphan tearing itself down */
+    }
+    delete window.__cucumbero;
   }
 
   // One span per character so each digit sits in a fixed cell — see the .clock
@@ -469,7 +499,8 @@
 
   // ------------------------------------------------------------ messaging ----
 
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // Named rather than inline so teardown() can unregister it again.
+  function onMessage(msg, _sender, sendResponse) {
     if (!msg || typeof msg.type !== 'string' || !msg.type.startsWith('CUCUMBERO_')) return false;
 
     if (msg.type === 'CUCUMBERO_SHOW') {
@@ -496,7 +527,10 @@
 
     sendResponse({ ok: true });
     return false;
-  });
+  }
 
+  chrome.runtime.onMessage.addListener(onMessage);
+  // Taken down again by teardown(), together with the listener — see the note
+  // there for why neither can go without the other.
   window.__cucumbero = { version: 2, alive: contextAlive, destroy: teardown };
 })();
