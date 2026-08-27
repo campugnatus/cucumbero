@@ -352,6 +352,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // status 'loading', slightly *before* webNavigation.onHistoryStateUpdated would
 // have. Later events for the same navigation arrive with no url, hence the
 // guard, and the ones with status 'complete' fall back to tab.url.
+//
+// Reading those URLs needs no "tabs" permission either: host permissions unlock
+// changeInfo.url and tab.url on their own, and <all_urls> covers every page we
+// would ever cover. Putting "tabs" back would buy nothing and would add that
+// same warning to the prompt.
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!changeInfo.url && changeInfo.status !== 'loading' && changeInfo.status !== 'complete') return;
   const url = changeInfo.url || tab.url || tab.pendingUrl;

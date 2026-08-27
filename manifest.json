@@ -5,7 +5,6 @@
   "description": "Timer and website blocker to help you focus",
   "permissions": [
     "storage",
-    "tabs",
     "scripting",
     "alarms",
     "notifications"
