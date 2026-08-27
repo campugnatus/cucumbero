@@ -122,6 +122,23 @@
     pipDisabled.clear();
   }
 
+  // The blur sits on the host rather than on .veil (see the note there), which
+  // puts it outside .wrap — so it neither hides with the wrap during a break nor
+  // fades with it at the end. Driven by hand instead: off while a break hands
+  // the page back, and eased out over 1s when a session ends, against the 1.6s
+  // the veil itself takes. Zeroed rather than set to none, because a filter list
+  // interpolates against another list and not against a keyword.
+  const BLUR = 'blur(6px) saturate(0.4)';
+  const NO_BLUR = 'blur(0px) saturate(1)';
+
+  function setBlur(on, ease = false) {
+    if (!host) return;
+    // Set first: the transition has to be in place before the value it applies
+    // to changes, or the recalc sees a plain assignment and jumps.
+    host.style.setProperty('transition', ease ? 'backdrop-filter 1s ease' : 'none', 'important');
+    host.style.setProperty('backdrop-filter', on ? BLUR : NO_BLUR, 'important');
+  }
+
   // Re-asserted on every tick rather than set once, because the lock lives in
   // the DOM while the bookkeeping lives per-instance. An overlay orphaned by an
   // extension reload still thinks it holds the lock, so its teardown clears one
@@ -155,10 +172,14 @@
 
     .wrap { position: fixed; inset: 0; z-index: ${Z}; }
 
+    /* The blur is on the host, not here: view-transition-name makes the host a
+       backdrop root, and backdrop-filter only samples what's painted behind the
+       element up to its nearest backdrop-root ancestor. From in here that's the
+       host, with nothing behind us inside it — the rule applied and filtered an
+       empty backdrop. On the host itself it reaches the page again. */
     .veil {
       position: absolute; inset: 0;
-      background: rgba(6, 8, 6, 0.94);
-      backdrop-filter: blur(5px) saturate(0.4);
+      background: rgba(6, 8, 6, 0.95);
     }
 
     .panel {
@@ -247,6 +268,11 @@
       `all: initial !important; position: fixed !important; inset: 0 !important;` +
       `z-index: ${Z} !important; display: block !important; visibility: visible !important;` +
       `opacity: 1 !important; pointer-events: auto !important;` +
+      // No backdrop-filter here even though this is where it ends up: setBlur
+      // owns it, and setMode('blocking') runs it in the same task as this build,
+      // so there's nothing to see in between. Naming the blur twice is how the
+      // two got out of step in the first place.
+
       // A view transition paints its pseudo-element tree in the top layer, which
       // outranks any z-index we can set, the way a modal dialog does. Every
       // element the page named is captured as its own group above the root
@@ -396,6 +422,7 @@
     if (next === 'break') {
       lockScroll(false);
       restorePip(); // the break hands the page back, popping out included
+      setBlur(false); // unblurred, or the page stays behind frosted glass
       host.style.setProperty('pointer-events', 'none', 'important');
       els.wrap.style.display = 'none';
       els.pill.style.display = 'block';
@@ -405,6 +432,7 @@
       els.pill.style.display = 'none';
       if (next === 'blocking') {
         lockScroll(true);
+        setBlur(true); // back on after a break, and undoes a fade we overtook
         els.wrap.classList.remove('fade');
         // A fullscreen video sits in the top layer, above any z-index we can set.
         if (document.fullscreenElement) {
@@ -529,6 +557,7 @@
     }
     mode = 'fading';
     host.style.setProperty('pointer-events', 'none', 'important');
+    setBlur(false, true); // eased out alongside the veil
     els.wrap.classList.add('fade');
     fadeTimer = setTimeout(teardown, 1750); // must outlast the CSS transition
   }
