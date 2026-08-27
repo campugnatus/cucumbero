@@ -31,6 +31,7 @@
   let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let nudgeTimer = null;
+  let fadeTimer = null; // the pending teardown behind the end-of-session fade
   let expiryReported = false;
   let scrollLocked = false;
   let observer = null;
@@ -348,6 +349,14 @@
   // ---------------------------------------------------------------- modes ----
 
   function setMode(next) {
+    // Starting a session while the last one is still fading out reuses this
+    // overlay rather than rebuilding it, so the teardown fadeOut queued is still
+    // pending — left alone it would fire a second later and strip the new
+    // session's overlay off the page. fadeOut sets 'fading' itself and never
+    // routes through here, so reaching this line means the fade was overtaken.
+    clearTimeout(fadeTimer);
+    fadeTimer = null;
+
     mode = next;
     if (!host) return;
 
@@ -390,6 +399,8 @@
     restorePip();
     stopTicker();
     clearTimeout(nudgeTimer);
+    clearTimeout(fadeTimer);
+    fadeTimer = null;
     observer?.disconnect();
     observer = null;
     host?.remove();
@@ -494,7 +505,7 @@
     mode = 'fading';
     host.style.setProperty('pointer-events', 'none', 'important');
     els.wrap.classList.add('fade');
-    setTimeout(teardown, 1750); // must outlast the CSS transition
+    fadeTimer = setTimeout(teardown, 1750); // must outlast the CSS transition
   }
 
   // ------------------------------------------------------------ messaging ----
