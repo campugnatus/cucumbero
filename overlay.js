@@ -22,12 +22,12 @@
   const COOLDOWN_NUDGE = 'One break a minute';
 
   let host = null;
-  let root = null;
   let els = {};
   let endsAt = 0;
   let breakEndsAt = 0;
   let breakMs = 10000;
   let breakReadyAt = 0; // session-wide: when another break may be taken
+  let coolingShown = null; // what syncBreak last painted; null means repaint it
   let mode = 'hidden'; // hidden | blocking | break | fading
   let ticker = null;
   let nudgeTimer = null;
@@ -129,14 +129,19 @@
   // the veil itself takes. Zeroed rather than set to none, because a filter list
   // interpolates against another list and not against a keyword.
   const BLUR = 'blur(6px) saturate(0.4)';
-  const NO_BLUR = 'blur(0px) saturate(1)';
+  // Only the eased path needs this: a filter list interpolates against another
+  // list and not against a keyword. Switching off outright uses `none`, which
+  // drops the compositing layer instead of leaving a full-viewport one applying
+  // an identity filter for the length of a break.
+  const ZERO_BLUR = 'blur(0px) saturate(1)';
 
   function setBlur(on, ease = false) {
     if (!host) return;
     // Set first: the transition has to be in place before the value it applies
     // to changes, or the recalc sees a plain assignment and jumps.
     host.style.setProperty('transition', ease ? 'backdrop-filter 1s ease' : 'none', 'important');
-    host.style.setProperty('backdrop-filter', on ? BLUR : NO_BLUR, 'important');
+    const to = on ? BLUR : ease ? ZERO_BLUR : 'none';
+    host.style.setProperty('backdrop-filter', to, 'important');
   }
 
   // Re-asserted on every tick rather than set once, because the lock lives in
@@ -170,7 +175,11 @@
         "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     button { font-family: inherit; }
 
-    .wrap { position: fixed; inset: 0; z-index: ${Z}; }
+    .wrap {
+      position: fixed; inset: 0; z-index: ${Z};
+      transition: opacity 1.6s ease;
+    }
+    .wrap.fade { opacity: 0; }
 
     /* The blur is on the host, not here: view-transition-name makes the host a
        backdrop root, and backdrop-filter only samples what's painted behind the
@@ -246,9 +255,6 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.35);
     }
 
-    .wrap { transition: opacity 1.6s ease; }
-    .wrap.fade { opacity: 0; }
-
     /* No prefers-reduced-motion block: the only animation left is the fade at
        the end, and cutting that would just freeze the overlay and then blink. */
   `;
@@ -272,7 +278,7 @@
       // owns it, and setMode('blocking') runs it in the same task as this build,
       // so there's nothing to see in between. Naming the blur twice is how the
       // two got out of step in the first place.
-
+      //
       // A view transition paints its pseudo-element tree in the top layer, which
       // outranks any z-index we can set, the way a modal dialog does. Every
       // element the page named is captured as its own group above the root
@@ -299,7 +305,7 @@
       // document, re-asserted every tick.
       `view-transition-name: cucumbero-overlay !important;`;
 
-    root = host.attachShadow({ mode: 'closed' });
+    const root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent = CSS;
 
@@ -328,11 +334,11 @@
       pill,
       title: wrap.querySelector('h1'),
       clock: wrap.querySelector('.clock'),
-      panel: wrap.querySelector('.panel'),
       brk: wrap.querySelector('.brk'),
       brkLabel: wrap.querySelector('.brk-label'),
     };
     els.title.textContent = 'You know what you should be doing...';
+    coolingShown = null; // a fresh button carries none of the old one's state
 
     els.brk.addEventListener('click', takeBreak);
 
@@ -376,7 +382,7 @@
     nudgeTimer = setTimeout(() => {
       if (!els.brk) return;
       els.brk.classList.remove('nudge');
-      els.brk.dataset.cooling = ''; // force syncBreak past its flip guard
+      coolingShown = null; // the label is the nudge now, so make syncBreak repaint
       syncBreak();
     }, 2200);
   }
@@ -390,8 +396,8 @@
   function syncBreak() {
     if (!els.brk) return;
     const cooling = Date.now() < breakReadyAt;
-    if (els.brk.dataset.cooling === String(cooling)) return;
-    els.brk.dataset.cooling = String(cooling);
+    if (coolingShown === cooling) return; // called four times a second; paint on the flip
+    coolingShown = cooling;
     els.brk.classList.remove('nudge'); // in case the wait ended mid-explanation
     els.brkLabel.textContent = `${Math.round(breakMs / 1000)}-second break`;
     els.brk.setAttribute('aria-disabled', String(cooling));
@@ -457,7 +463,6 @@
     observer = null;
     host?.remove();
     host = null;
-    root = null;
     els = {};
 
     // Nothing of ours runs past this line: host, observer, ticker, nudge timer,
@@ -596,5 +601,5 @@
   chrome.runtime.onMessage.addListener(onMessage);
   // Taken down again by teardown(), together with the listener — see the note
   // there for why neither can go without the other.
-  window.__cucumbero = { version: 2, alive: contextAlive, destroy: teardown };
+  window.__cucumbero = { alive: contextAlive, destroy: teardown };
 })();

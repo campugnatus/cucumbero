@@ -14,7 +14,7 @@ sites with a black rectangle that says *"You know what you should be doing."*
 
 Click the icon:
 
-- **Duration** — type a number of minutes (1–720), or use the −/+ buttons, which
+- **Duration** — type a number of minutes (1–1440), or use the −/+ buttons, which
   step in quarter hours and snap to the grid. The field opens focused and
   selected, so typing a number and pressing Enter is the whole interaction. It
   remembers the last length you started and opens on that; 45 until then.

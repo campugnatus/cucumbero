@@ -121,7 +121,12 @@ function tick() {
 }
 
 async function refresh() {
-  state = await send('GET_STATE');
+  // send() answers {} when the worker doesn't — mid-update, mostly. Defaulted
+  // rather than guarded at each use: render() reads blocklist.length before it
+  // reads anything else, so an unanswered call would throw there and leave the
+  // popup blank instead of merely empty.
+  const { session = null, blocklist = [], lastMinutes = 0 } = await send('GET_STATE');
+  state = { session, blocklist, lastMinutes };
   render();
   if (state.session && !ticker) ticker = setInterval(tick, 250);
   if (!state.session && ticker) {

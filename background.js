@@ -41,15 +41,17 @@ async function writeList(list) {
 //
 // Both live in session storage, so they survive worker eviction but not a
 // browser restart: a break shouldn't outlive the browser.
-async function readBreak() {
-  const { breakUntil = 0 } = await chrome.storage.session.get('breakUntil');
-  return breakUntil > Date.now() ? breakUntil : 0;
-}
-
-// When the next break may be taken. 0 means "right now".
-async function breakReadyAt() {
-  const { nextBreakAt = 0 } = await chrome.storage.session.get('nextBreakAt');
-  return nextBreakAt;
+// Both halves in one read, because every caller wants both: an overlay is told
+// them together, and a sweep would otherwise ask twice per tab it covers.
+async function readBreakState() {
+  const { breakUntil = 0, nextBreakAt = 0 } = await chrome.storage.session.get([
+    'breakUntil',
+    'nextBreakAt',
+  ]);
+  return {
+    breakUntil: breakUntil > Date.now() ? breakUntil : 0, // one that's over reads as none
+    breakReadyAt: nextBreakAt, // when the next may be taken; 0 means right now
+  };
 }
 
 // Every session boundary starts the break allowance fresh.
@@ -238,13 +240,13 @@ async function tellTab(tabId, message) {
   }
 }
 
-async function showOverlay(tabId, session) {
+async function showOverlay(tabId, session, brk) {
   const message = {
     type: 'CUCUMBERO_SHOW',
     endsAt: session.endsAt,
-    breakUntil: await readBreak(), // so a tab opened mid-break is quiet too
+    breakUntil: brk.breakUntil, // so a tab opened mid-break is quiet too
     breakMs: BREAK_MS,
-    breakReadyAt: await breakReadyAt(),
+    breakReadyAt: brk.breakReadyAt,
   };
   if (await tellTab(tabId, message)) return;
   try {
@@ -272,7 +274,7 @@ async function evaluateTab(tabId, url, ctx) {
   if (sessionIsLive(session)) {
     const list = ctx ? ctx.list : await readList(); // not read at all when idle
     if (urlIsBlocked(url, list)) {
-      await showOverlay(tabId, session);
+      await showOverlay(tabId, session, ctx ? ctx.brk : await readBreakState());
       return;
     }
   }
@@ -280,7 +282,11 @@ async function evaluateTab(tabId, url, ctx) {
 }
 
 async function sweepAllTabs() {
-  const ctx = { session: await currentSession(), list: await readList() };
+  const ctx = {
+    session: await currentSession(),
+    list: await readList(),
+    brk: await readBreakState(),
+  };
   const tabs = await chrome.tabs.query({});
   await Promise.all(
     tabs.map((t) => (t.id != null ? evaluateTab(t.id, t.url || t.pendingUrl, ctx) : null))
@@ -296,8 +302,8 @@ async function paintBadge(session) {
   }
   const left = session.endsAt - Date.now();
   // Always minutes. An "h" reading floored the value, so 1h58 showed as "1h"
-  // and kept saying it for the next hour. The badge fits ~4 characters and the
-  // longest session is 720 minutes, so three digits are never a problem.
+  // and kept saying it for the next hour. The longest session is 1440 minutes;
+  // four digits render without clipping, checked on the real badge.
   const mins = Math.ceil(left / 60000);
   await chrome.action.setBadgeBackgroundColor({ color: GREEN });
   await chrome.action.setBadgeText({ text: String(mins) });
@@ -389,7 +395,7 @@ const handlers = {
     const d = normalizeEntry(domain);
     if (!d) return { error: "That doesn't look like a domain." };
     const list = await readList();
-    if (list.includes(d)) return { blocklist: list, already: true, domain: d };
+    if (list.includes(d)) return { blocklist: list, domain: d };
     const next = [...list, d].sort();
     await writeList(next);
     await sweepAllTabs();
@@ -408,8 +414,8 @@ const handlers = {
   // From an overlay: BREAK_MS of peace everywhere, if one is owed.
   async TAKE_BREAK() {
     const now = Date.now();
-    const readyAt = await breakReadyAt();
-    if (now < readyAt) return { denied: true, breakReadyAt: readyAt };
+    const { breakReadyAt } = await readBreakState();
+    if (now < breakReadyAt) return { denied: true, breakReadyAt };
 
     const until = now + BREAK_MS;
     await chrome.storage.session.set({ breakUntil: until, nextBreakAt: until + BREAK_COOLDOWN_MS });
@@ -433,7 +439,11 @@ const handlers = {
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const handler = handlers[message?.type];
+  // hasOwn, not a plain lookup: `constructor` and friends come free with every
+  // object, and one of those as a type would sail past a truthiness check and
+  // then throw where nothing answers the sender.
+  const type = message?.type;
+  const handler = typeof type === 'string' && Object.hasOwn(handlers, type) ? handlers[type] : null;
   if (!handler) return false;
   handler(message, sender).then(
     (result) => sendResponse(result ?? {}),
