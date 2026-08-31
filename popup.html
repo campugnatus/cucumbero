@@ -29,7 +29,9 @@
             value="45"
             autofocus
           />
-          <span class="unit">min</span>
+          <!-- Text swapped by syncStepper: 0 is an open-ended session, and
+               "0 min" would read as a session of no length. -->
+          <span class="unit" id="unit">min</span>
         </label>
         <button id="plus" title="15 minutes more (UP arrow)" class="step" type="button" aria-label="15 minutes more">+</button>
       </div>

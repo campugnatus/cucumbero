@@ -5,6 +5,7 @@ const HOLD_MS = 5000;
 const $ = (id) => document.getElementById(id);
 const el = {
   minutes: $('minutes'),
+  unit: $('unit'),
   minus: $('minus'),
   plus: $('plus'),
   go: $('go'),
@@ -115,7 +116,10 @@ function paintClock(text) {
 
 function tick() {
   if (!state.session) return;
-  const left = state.session.endsAt - Date.now();
+  const { startedAt, endsAt } = state.session;
+  // Open-ended: nothing to count towards, so count away from the start instead.
+  if (endsAt === null) return paintClock(clock(Date.now() - startedAt));
+  const left = endsAt - Date.now();
   paintClock(clock(left));
   if (left <= 0) refresh();
 }
@@ -125,7 +129,7 @@ async function refresh() {
   // rather than guarded at each use: render() reads blocklist.length before it
   // reads anything else, so an unanswered call would throw there and leave the
   // popup blank instead of merely empty.
-  const { session = null, blocklist = [], lastMinutes = 0 } = await send('GET_STATE');
+  const { session = null, blocklist = [], lastMinutes = null } = await send('GET_STATE');
   state = { session, blocklist, lastMinutes };
   render();
   if (state.session && !ticker) ticker = setInterval(tick, 250);
@@ -138,7 +142,10 @@ async function refresh() {
 // ------------------------------------------------------------- duration ----
 
 const STEP = 15; // the +/- buttons work in quarter hours
-const MIN_TYPED = 1; // you can type a 1-minute session; the buttons won't go there
+// Zero is a real setting: a session with no end that counts up until you stop
+// it. The buttons reach it — 15 steps down to 0 — so it's discoverable without
+// having to know you can type it.
+const MIN_MIN = 0;
 // 24 hours, which is 96 quarter-hours exactly, so the +/- grid reaches it
 // without clamping to an off-grid value on the last press. Past a day you want
 // a schedule rather than a timer, and this deliberately isn't that. The worker
@@ -159,7 +166,7 @@ function currentMinutes() {
 
 // Normalizes the box into a number we're willing to run with, and writes it back.
 function commitMinutes() {
-  const v = Math.min(MAX_MIN, Math.max(MIN_TYPED, currentMinutes()));
+  const v = Math.min(MAX_MIN, Math.max(MIN_MIN, currentMinutes()));
   el.minutes.value = String(v);
   syncStepper();
   return v;
@@ -167,18 +174,21 @@ function commitMinutes() {
 
 function syncStepper() {
   const v = currentMinutes();
-  el.minus.disabled = v <= STEP;
+  el.minus.disabled = v <= MIN_MIN;
   el.plus.disabled = v >= MAX_MIN;
+  // The number alone doesn't say what 0 means, and "0 min" says the wrong
+  // thing — it reads as a session of no length rather than one with no end.
+  el.unit.textContent = v === 0 ? 'count up' : 'min';
 }
 
 // Snaps to the 15-minute grid rather than blindly adding: from 20, "+" gives
 // 30, not 35.
 function stepBy(dir) {
   const base = currentMinutes();
-  if (dir < 0 && base <= STEP) return;
+  if (dir < 0 && base <= MIN_MIN) return;
   const next =
     dir > 0 ? Math.floor(base / STEP) * STEP + STEP : Math.ceil(base / STEP) * STEP - STEP;
-  el.minutes.value = String(Math.min(MAX_MIN, Math.max(STEP, next)));
+  el.minutes.value = String(Math.min(MAX_MIN, Math.max(MIN_MIN, next)));
   syncStepper();
   el.minutes.focus();
   el.minutes.select();
@@ -201,7 +211,9 @@ el.minutes.addEventListener('keydown', (e) => {
 
 el.go.addEventListener('click', async () => {
   const minutes = commitMinutes();
-  const res = await send('START', { durationMs: minutes * 60_000 });
+  // null rather than 0: the worker reads it as "no deadline" instead of a
+  // duration to clamp up to its minimum.
+  const res = await send('START', { durationMs: minutes === 0 ? null : minutes * 60_000 });
   if (res.error) return say(res.error);
 
   // Starts either way — an empty list makes this a plain timer, which is a
@@ -317,7 +329,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
   // Seeded once here rather than in render(), which re-runs on every storage
   // change and would overwrite whatever you were typing.
-  if (state.lastMinutes) {
+  // != null, not truthiness: 0 is a length you can pick, so it has to survive
+  // the round trip like any other.
+  if (state.lastMinutes != null) {
     defaultMinutes = state.lastMinutes;
     el.minutes.value = String(state.lastMinutes);
   }

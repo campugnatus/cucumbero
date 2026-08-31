@@ -120,8 +120,21 @@ function urlIsBlocked(url, list) {
 
 // -------------------------------------------------------------- sessions ----
 
+// endsAt null is an open-ended session — it counts up and runs until you stop
+// it, so it's live for as long as it exists.
 function sessionIsLive(session) {
-  return !!session && session.endsAt > Date.now();
+  return !!session && (session.endsAt === null || session.endsAt > Date.now());
+}
+
+// For the notification at the end of an open-ended session, which has no
+// duration to report except the one you served.
+function describeSpan(ms) {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 1) return 'Less than a minute';
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'}`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h} hour${h === 1 ? '' : 's'}`;
 }
 
 // ALARM_END is the session's real deadline; ALARM_TICK keeps the badge honest
@@ -129,16 +142,23 @@ function sessionIsLive(session) {
 async function armAlarms(session) {
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
-  chrome.alarms.create(ALARM_END, { when: session.endsAt });
+  // An open-ended session has no deadline to arm, but still wants the tick.
+  if (session.endsAt !== null) chrome.alarms.create(ALARM_END, { when: session.endsAt });
   chrome.alarms.create(ALARM_TICK, { periodInMinutes: 1 });
 }
 
+// durationMs null asks for an open-ended session.
 async function startSession(durationMs) {
   const now = Date.now();
-  const session = { startedAt: now, endsAt: now + durationMs, durationMs };
+  const session = { startedAt: now, endsAt: durationMs === null ? null : now + durationMs };
   // Remembered so the next popup opens on the length you actually use. Recorded
-  // at the start, so it reflects what you chose even if you abort early.
-  await chrome.storage.local.set({ session, lastMinutes: Math.round(durationMs / 60000) });
+  // at the start, so it reflects what you chose even if you abort early. Zero is
+  // a real value here — it's what the popup reads back as "count up" — so the
+  // choice of mode persists the same way the choice of length does.
+  await chrome.storage.local.set({
+    session,
+    lastMinutes: durationMs === null ? 0 : Math.round(durationMs / 60000),
+  });
   await resetBreaks();
   await armAlarms(session);
   await paintBadge(session);
@@ -188,28 +208,40 @@ async function endSessionOnce(reason) {
   const session = await readSession();
   if (!session) return null;
 
+  // Stopping an open-ended session is the only way it can end, so it's how that
+  // session finishes rather than how it's abandoned — it earns the fade and the
+  // notification. A countdown abandoned early still just gets dismissed.
+  const finished = reason === 'finished' || session.endsAt === null;
+
   await chrome.storage.local.set({ session: null });
   await resetBreaks();
   await chrome.alarms.clear(ALARM_END);
   await chrome.alarms.clear(ALARM_TICK);
   await paintBadge(null);
 
-  await broadcast({ type: reason === 'finished' ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
+  await broadcast({ type: finished ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
 
-  if (reason === 'finished') {
+  if (finished) {
     const options = {
       type: 'basic',
       // The notification API reserves the icon slot whether or not you fill it,
       // so fill it: the 🥒 glyph on transparency, no plate behind it.
       iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
-      title: 'Your focusing session is over',
+      // A countdown announces itself; a count-up has nothing to report but the
+      // time you served, which is the only score it keeps.
+      title:
+        session.endsAt === null
+          ? `${describeSpan(Date.now() - session.startedAt)} of focus`
+          : 'Your focusing session is over',
       message: await pickLine(),
       priority: 2,
     };
     // Awaited so the worker isn't torn down before Chrome has taken the
     // notification — this is the last thing endSession does.
     await new Promise((resolve) => {
-      chrome.notifications.create('cucumbero:done:' + session.endsAt, options, () => {
+      // Keyed on startedAt, which every session has — endsAt is null for half
+      // of them, and two open-ended sessions would then share an id.
+      chrome.notifications.create('cucumbero:done:' + session.startedAt, options, () => {
         if (chrome.runtime.lastError) console.warn('cucumbero:', chrome.runtime.lastError.message);
         resolve();
       });
@@ -222,7 +254,7 @@ async function endSessionOnce(reason) {
 // missed (worker asleep during a browser restart, clock jump, etc).
 async function currentSession() {
   const session = await readSession();
-  if (session && session.endsAt <= Date.now()) {
+  if (session && session.endsAt !== null && session.endsAt <= Date.now()) {
     await endSession('finished');
     return null;
   }
@@ -243,6 +275,7 @@ async function tellTab(tabId, message) {
 async function showOverlay(tabId, session, brk) {
   const message = {
     type: 'CUCUMBERO_SHOW',
+    startedAt: session.startedAt, // what an open-ended session counts up from
     endsAt: session.endsAt,
     breakUntil: brk.breakUntil, // so a tab opened mid-break is quiet too
     breakMs: BREAK_MS,
@@ -300,11 +333,17 @@ async function paintBadge(session) {
     await chrome.action.setBadgeText({ text: '' });
     return;
   }
-  const left = session.endsAt - Date.now();
   // Always minutes. An "h" reading floored the value, so 1h58 showed as "1h"
   // and kept saying it for the next hour. The longest session is 1440 minutes;
   // four digits render without clipping, checked on the real badge.
-  const mins = Math.ceil(left / 60000);
+  //
+  // Counting up rounds down, so it reads 0 for the first minute and only claims
+  // a minute once one has passed. Counting down rounds up, so it never says 0
+  // while there's still time on it.
+  const mins =
+    session.endsAt === null
+      ? Math.floor((Date.now() - session.startedAt) / 60000)
+      : Math.ceil((session.endsAt - Date.now()) / 60000);
   await chrome.action.setBadgeBackgroundColor({ color: GREEN });
   await chrome.action.setBadgeText({ text: String(mins) });
 }
@@ -322,8 +361,11 @@ async function bootstrap(fresh) {
   if (!sessionIsLive(session)) return;
 
   // Cheaper than re-arming blind, and avoids resetting the tick alarm's phase
-  // on every wake.
-  if (!(await chrome.alarms.get(ALARM_END)) || !(await chrome.alarms.get(ALARM_TICK))) {
+  // on every wake. An open-ended session has no ALARM_END to find, so it must
+  // not be counted as missing — otherwise this re-arms on every single wake and
+  // the tick, re-created each time, never survives long enough to fire.
+  const endMissing = session.endsAt !== null && !(await chrome.alarms.get(ALARM_END));
+  if (endMissing || !(await chrome.alarms.get(ALARM_TICK))) {
     await armAlarms(session);
   }
 
@@ -374,14 +416,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 const handlers = {
   async GET_STATE() {
     const session = await currentSession();
-    const { lastMinutes = 0 } = await chrome.storage.local.get('lastMinutes');
+    // null, not 0: 0 is a length you can actually pick now, so it can't double
+    // as "never started one".
+    const { lastMinutes = null } = await chrome.storage.local.get('lastMinutes');
     return { session: sessionIsLive(session) ? session : null, blocklist: await readList(), lastMinutes };
   },
 
   async START({ durationMs }) {
-    // One minute to a day. The upper bound has to match MAX_MIN in popup.js, or
-    // the popup will happily accept a length this quietly refuses to run.
-    const ms = Math.max(60_000, Math.min(24 * 60 * 60_000, Number(durationMs) || 0));
+    // null is the open-ended session and skips the clamp — it has no length to
+    // bound. Otherwise one minute to a day; the upper bound has to match MAX_MIN
+    // in popup.js, or the popup will happily accept a length this quietly
+    // refuses to run.
+    const ms =
+      durationMs === null
+        ? null
+        : Math.max(60_000, Math.min(24 * 60 * 60_000, Number(durationMs) || 0));
     const session = await startSession(ms);
     return { session };
   },

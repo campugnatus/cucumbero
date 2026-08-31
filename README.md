@@ -18,6 +18,13 @@ Click the icon:
   step in quarter hours and snap to the grid. The field opens focused and
   selected, so typing a number and pressing Enter is the whole interaction. It
   remembers the last length you started and opens on that; 45 until then.
+
+  **Zero means no limit**: the clock counts up instead of down and the session
+  runs until you stop it, which is what the −/+ buttons step down to past 15.
+  A countdown is a commitment you make in advance and then have to sit with;
+  counting up asks a different question, of how long you can keep going. Ending
+  one is the only way it can end, so unlike an abandoned countdown it still
+  gets the fade and the notification — which reports how long you managed.
 - **Block field** — pre-filled with the domain of the tab you're on, so blocking
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.

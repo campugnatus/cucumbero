@@ -35,7 +35,8 @@
 
   let host = null;
   let els = {};
-  let endsAt = 0;
+  let startedAt = 0;
+  let endsAt = 0; // null on an open-ended session, which counts up from startedAt
   let breakEndsAt = 0;
   let breakMs = 10000;
   let breakReadyAt = 0; // session-wide: when another break may be taken
@@ -551,6 +552,12 @@
       syncBreak();
       lockScroll(true); // re-asserted: see the note on lockScroll
       blockPip(); // videos the page adds later, and any pop-out that slips through
+      // Counting up has no deadline to report and nothing to reach zero, so the
+      // expiry check below belongs only to the countdown.
+      if (endsAt === null) {
+        paintClock(clock(Date.now() - startedAt));
+        return;
+      }
       const left = endsAt - Date.now();
       paintClock(clock(left));
       // Once, not every tick: tell the worker the countdown is up, in case the
@@ -600,6 +607,7 @@
         sendResponse({ ok: false });
         return false;
       }
+      startedAt = msg.startedAt || 0;
       endsAt = msg.endsAt;
       breakMs = msg.breakMs || breakMs;
       breakReadyAt = msg.breakReadyAt || 0;
