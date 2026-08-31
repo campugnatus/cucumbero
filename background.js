@@ -158,12 +158,36 @@ async function startSession(durationMs) {
   await chrome.storage.local.set({
     session,
     lastMinutes: durationMs === null ? 0 : Math.round(durationMs / 60000),
+    notice: '', // whatever went wrong last time has been read and acted on
   });
   await resetBreaks();
   await armAlarms(session);
   await paintBadge(session);
   await sweepAllTabs();
   return session;
+}
+
+// Awaited by both callers, so the worker isn't torn down before Chrome has
+// taken the notification — it's the last thing endSession does either way.
+// Ids are keyed on startedAt, which every session has; endsAt is null for half
+// of them, and two open-ended sessions would then collide and replace one
+// another mid-composite.
+async function notify(id, title, message) {
+  const options = {
+    type: 'basic',
+    // The notification API reserves the icon slot whether or not you fill it,
+    // so fill it: the 🥒 glyph on transparency, no plate behind it.
+    iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
+    title,
+    message,
+    priority: 2,
+  };
+  await new Promise((resolve) => {
+    chrome.notifications.create('cucumbero:' + id, options, () => {
+      if (chrome.runtime.lastError) console.warn('cucumbero:', chrome.runtime.lastError.message);
+      resolve();
+    });
+  });
 }
 
 // The title already says the session finished, so these only have to carry the
@@ -195,7 +219,8 @@ async function pickLine() {
 // icon flashing and vanishing. Coalescing the callers is the fix.
 let ending = null;
 
-// reason: 'stopped' (user gave up) | 'finished' (timer ran out)
+// reason: 'stopped' (you held the button) | 'finished' (the timer ran out)
+//       | 'aborted' (the session stopped being trustworthy — see abortOnClockChange)
 function endSession(reason) {
   if (ending) return ending;
   ending = endSessionOnce(reason).finally(() => {
@@ -208,10 +233,16 @@ async function endSessionOnce(reason) {
   const session = await readSession();
   if (!session) return null;
 
-  // Stopping an open-ended session is the only way it can end, so it's how that
-  // session finishes rather than how it's abandoned — it earns the fade and the
-  // notification. A countdown abandoned early still just gets dismissed.
-  const finished = reason === 'finished' || session.endsAt === null;
+  // Holding the button is the only way an open-ended session can end, so for
+  // that one it's how the session finishes rather than how it's abandoned, and
+  // it earns the same fade and notification a countdown gets for running out. A
+  // countdown abandoned early is still just dismissed.
+  //
+  // The reason has to be checked, not only the shape: an abort is neither of
+  // those. Nothing was completed, and on an open-ended session the elapsed time
+  // is the very thing the abort exists to distrust.
+  const finished =
+    reason === 'finished' || (reason === 'stopped' && session.endsAt === null);
 
   await chrome.storage.local.set({ session: null });
   await resetBreaks();
@@ -222,38 +253,53 @@ async function endSessionOnce(reason) {
   await broadcast({ type: finished ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
 
   if (finished) {
-    const options = {
-      type: 'basic',
-      // The notification API reserves the icon slot whether or not you fill it,
-      // so fill it: the 🥒 glyph on transparency, no plate behind it.
-      iconUrl: chrome.runtime.getURL('icons/cucumber.png'),
-      // A countdown announces itself; a count-up has nothing to report but the
-      // time you served, which is the only score it keeps.
-      title:
-        session.endsAt === null
-          ? `${describeSpan(Date.now() - session.startedAt)} of focus`
-          : 'Your focusing session is over',
-      message: await pickLine(),
-      priority: 2,
-    };
-    // Awaited so the worker isn't torn down before Chrome has taken the
-    // notification — this is the last thing endSession does.
-    await new Promise((resolve) => {
-      // Keyed on startedAt, which every session has — endsAt is null for half
-      // of them, and two open-ended sessions would then share an id.
-      chrome.notifications.create('cucumbero:done:' + session.startedAt, options, () => {
-        if (chrome.runtime.lastError) console.warn('cucumbero:', chrome.runtime.lastError.message);
-        resolve();
-      });
-    });
+    // A countdown announces itself; a count-up has nothing to report but the
+    // time you served, which is the only score it keeps.
+    await notify(
+      'done:' + session.startedAt,
+      session.endsAt === null
+        ? `${describeSpan(Date.now() - session.startedAt)} of focus`
+        : 'Your focusing session is over',
+      await pickLine()
+    );
+  } else if (reason === 'aborted') {
+    // The popup's status band says this too, but it only says it to someone who
+    // opens the popup — and nothing prompts you to, since the symptom is that
+    // sites you asked to be kept from quietly work again.
+    await notify('abort:' + session.startedAt, 'Session stopped', CLOCK_REASON);
   }
   return session;
+}
+
+// Shown in the popup's status band after the abort below. Kept until the next
+// session starts, so it's still there when you open the popup wondering why
+// nothing is being blocked.
+const CLOCK_NOTICE = 'Session error: the system clock changed and the timer could no longer be trusted';
+// The same news for the notification, which has a title to carry the "stopped"
+// half and a body clipped at two lines.
+const CLOCK_REASON = 'The system clock changed and the timer could no longer be trusted.';
+
+// A session cannot have started in the future. When one has, the system clock
+// moved backwards under it — an NTP correction, a timezone fix, or a dual boot
+// where the other OS writes local time to a hardware clock this one reads as
+// UTC, which puts you out by exactly one UTC offset.
+//
+// Nothing records what was served before the jump, so neither reading can be
+// trusted: a countdown's deadline has drifted out by the same amount, and a
+// count-up has nothing that ever passes — the badge climbs through negative
+// numbers towards zero and the clock sits at 00:00 because it clamps. Rather
+// than carry on reporting a number we'd be inventing, stop and say so.
+async function abortOnClockChange(session) {
+  if (!session || session.startedAt <= Date.now()) return session;
+  await chrome.storage.local.set({ notice: CLOCK_NOTICE }); // before, so the popup's refresh sees it
+  await endSession('aborted'); // its own reason: neither finished nor given up on
+  return null;
 }
 
 // Lazily reconciles an expired session — covers the case where the alarm was
 // missed (worker asleep during a browser restart, clock jump, etc).
 async function currentSession() {
-  const session = await readSession();
+  const session = await abortOnClockChange(await readSession());
   if (session && session.endsAt !== null && session.endsAt <= Date.now()) {
     await endSession('finished');
     return null;
@@ -416,10 +462,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 const handlers = {
   async GET_STATE() {
     const session = await currentSession();
-    // null, not 0: 0 is a length you can actually pick now, so it can't double
-    // as "never started one".
-    const { lastMinutes = null } = await chrome.storage.local.get('lastMinutes');
-    return { session: sessionIsLive(session) ? session : null, blocklist: await readList(), lastMinutes };
+    // lastMinutes defaults to null, not 0: 0 is a length you can actually pick
+    // now, so it can't double as "never started one".
+    const { lastMinutes = null, notice = '' } = await chrome.storage.local.get([
+      'lastMinutes',
+      'notice',
+    ]);
+    return {
+      session: sessionIsLive(session) ? session : null,
+      blocklist: await readList(),
+      lastMinutes,
+      notice,
+    };
   },
 
   async START({ durationMs }) {

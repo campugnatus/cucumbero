@@ -45,6 +45,9 @@
   let ticker = null;
   let nudgeTimer = null;
   let fadeTimer = null; // the pending teardown behind the end-of-session fade
+  // One shot per session: we've told the worker the local clock says this
+  // session shouldn't still be running — either its countdown reached zero or
+  // it claims to have started in the future.
   let expiryReported = false;
   let scrollLocked = false;
   let observer = null;
@@ -552,10 +555,23 @@
       syncBreak();
       lockScroll(true); // re-asserted: see the note on lockScroll
       blockPip(); // videos the page adds later, and any pop-out that slips through
+      // Started in the future, so the system clock moved backwards. Checked for
+      // both modes and before either of them: a countdown can't notice this on
+      // its own, because a backward jump only pushes its deadline further out
+      // and makes `left` larger. The worker decides what to do about it; this is
+      // here so it finds out now rather than on its next minute alarm, which the
+      // same jump may have pushed hours away. Our own interval is unaffected —
+      // it measures elapsed time, not wall-clock arrivals.
+      const up = Date.now() - startedAt;
+      if (up < 0 && !expiryReported) {
+        expiryReported = true;
+        send('CHECK_EXPIRY');
+      }
+
       // Counting up has no deadline to report and nothing to reach zero, so the
       // expiry check below belongs only to the countdown.
       if (endsAt === null) {
-        paintClock(clock(Date.now() - startedAt));
+        paintClock(clock(up));
         return;
       }
       const left = endsAt - Date.now();

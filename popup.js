@@ -96,6 +96,13 @@ function render() {
   // × buttons carry a title attribute instead.
   el.empty.hidden = state.blocklist.length !== 0;
 
+  // Something the worker had to stop on its own, waiting here to be read — the
+  // clock-change abort is the only one so far. Re-asserted on every render
+  // rather than shown once, because the worker clears it when the next session
+  // starts and that's the point at which it stops being news. The paths that
+  // report a fresher error all return before reaching here.
+  if (state.notice) say(state.notice);
+
   syncAddButton();
   tick();
 }
@@ -129,8 +136,8 @@ async function refresh() {
   // rather than guarded at each use: render() reads blocklist.length before it
   // reads anything else, so an unanswered call would throw there and leave the
   // popup blank instead of merely empty.
-  const { session = null, blocklist = [], lastMinutes = null } = await send('GET_STATE');
-  state = { session, blocklist, lastMinutes };
+  const { session = null, blocklist = [], lastMinutes = null, notice = '' } = await send('GET_STATE');
+  state = { session, blocklist, lastMinutes, notice };
   render();
   if (state.session && !ticker) ticker = setInterval(tick, 250);
   if (!state.session && ticker) {

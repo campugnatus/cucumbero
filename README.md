@@ -83,6 +83,12 @@ Session state is a wall-clock `endsAt` timestamp in `chrome.storage.local` plus 
 your session early or strand an overlay on a page. A per-minute alarm re-sweeps
 every tab as a self-heal and keeps the toolbar badge honest.
 
+The flip side of wall-clock timing is that moving the system clock backwards
+invalidates a running session — an NTP correction, or a dual boot where the
+other OS writes local time to a hardware clock this one reads as UTC. Nothing
+records what was served before the jump, so the session is stopped and the
+popup says why, rather than carrying on with a number it would be inventing.
+
 The overlay lives in a closed shadow root with inline `!important` styling on the
 host, and a `MutationObserver` puts it back if the page removes the node.
 
