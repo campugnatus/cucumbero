@@ -24,7 +24,8 @@ Click the icon:
   A countdown is a commitment you make in advance and then have to sit with;
   counting up asks a different question, of how long you can keep going. Ending
   one is the only way it can end, so unlike an abandoned countdown it still
-  gets the fade and the notification — which reports how long you managed.
+  fades out rather than blinking away. No notification: you ended it yourself,
+  with the count in front of you the whole five seconds you held the button.
 - **Block field** — pre-filled with the domain of the tab you're on, so blocking
   the site currently wasting your time is one click. Blocking `reddit.com` also
   blocks `old.reddit.com` and every other subdomain.

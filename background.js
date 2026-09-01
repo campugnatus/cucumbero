@@ -126,17 +126,6 @@ function sessionIsLive(session) {
   return !!session && (session.endsAt === null || session.endsAt > Date.now());
 }
 
-// For the notification at the end of an open-ended session, which has no
-// duration to report except the one you served.
-function describeSpan(ms) {
-  const mins = Math.round(ms / 60_000);
-  if (mins < 1) return 'Less than a minute';
-  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'}`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h} hour${h === 1 ? '' : 's'}`;
-}
-
 // ALARM_END is the session's real deadline; ALARM_TICK keeps the badge honest
 // and re-sweeps the tabs once a minute as a self-heal.
 async function armAlarms(session) {
@@ -233,14 +222,10 @@ async function endSessionOnce(reason) {
   const session = await readSession();
   if (!session) return null;
 
-  // Holding the button is the only way an open-ended session can end, so for
-  // that one it's how the session finishes rather than how it's abandoned, and
-  // it earns the same fade and notification a countdown gets for running out. A
-  // countdown abandoned early is still just dismissed.
-  //
-  // The reason has to be checked, not only the shape: an abort is neither of
-  // those. Nothing was completed, and on an open-ended session the elapsed time
-  // is the very thing the abort exists to distrust.
+  // Whether the overlay fades or just blinks away. Holding the button is the
+  // only way an open-ended session can end, so for that one it's how the session
+  // finishes rather than how it's abandoned. A countdown abandoned early is
+  // still just dismissed, and so is an abort — nothing was completed.
   const finished =
     reason === 'finished' || (reason === 'stopped' && session.endsAt === null);
 
@@ -252,16 +237,12 @@ async function endSessionOnce(reason) {
 
   await broadcast({ type: finished ? 'CUCUMBERO_FINISH' : 'CUCUMBERO_DISMISS' });
 
-  if (finished) {
-    // A countdown announces itself; a count-up has nothing to report but the
-    // time you served, which is the only score it keeps.
-    await notify(
-      'done:' + session.startedAt,
-      session.endsAt === null
-        ? `${describeSpan(Date.now() - session.startedAt)} of focus`
-        : 'Your focusing session is over',
-      await pickLine()
-    );
+  // Only a countdown running out gets announced, because only it ends while
+  // you're looking elsewhere. Ending a count-up means holding a button for five
+  // seconds with the elapsed time in 56px directly above it — telling you
+  // afterwards what you just spent five seconds reading is nothing but noise.
+  if (reason === 'finished') {
+    await notify('done:' + session.startedAt, 'Your focusing session is over', await pickLine());
   } else if (reason === 'aborted') {
     // The popup's status band says this too, but it only says it to someone who
     // opens the popup — and nothing prompts you to, since the symptom is that
