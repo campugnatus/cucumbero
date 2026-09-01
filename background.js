@@ -360,10 +360,6 @@ async function paintBadge(session) {
     await chrome.action.setBadgeText({ text: '' });
     return;
   }
-  // Always minutes. An "h" reading floored the value, so 1h58 showed as "1h"
-  // and kept saying it for the next hour. The longest session is 1440 minutes;
-  // four digits render without clipping, checked on the real badge.
-  //
   // Counting up rounds down, so it reads 0 for the first minute and only claims
   // a minute once one has passed. Counting down rounds up, so it never says 0
   // while there's still time on it.
@@ -371,8 +367,15 @@ async function paintBadge(session) {
     session.endsAt === null
       ? Math.floor((Date.now() - session.startedAt) / 60000)
       : Math.ceil((session.endsAt - Date.now()) / 60000);
+
+  // Minutes inside a day, hours past it. An "h" reading floors the value, so
+  // 1h58 shows as "1h" and says it for the next hour — which is why minutes win
+  // wherever they're any use. Past 24 hours they aren't: a five-digit minute
+  // count doesn't fit the badge and reads as noise anyway. The boundary is the
+  // countdown's own ceiling, so only a count-up can ever cross it.
+  const text = mins > 1440 ? `${Math.floor(mins / 60)}h` : String(mins);
   await chrome.action.setBadgeBackgroundColor({ color: GREEN });
-  await chrome.action.setBadgeText({ text: String(mins) });
+  await chrome.action.setBadgeText({ text });
 }
 
 // ------------------------------------------------------------- bootstrap ----

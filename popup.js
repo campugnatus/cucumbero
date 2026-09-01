@@ -112,6 +112,9 @@ function render() {
 function paintClock(text) {
   if (el.clock.dataset.value === text) return;
   el.clock.dataset.value = text;
+  // "99:59:59" is the widest that fits at full size — see the .long rule. Only
+  // a count-up ever gets past it, and only after four days.
+  el.clock.classList.toggle('long', text.length > 8);
   el.clock.textContent = '';
   for (const ch of text) {
     const cell = document.createElement('span');

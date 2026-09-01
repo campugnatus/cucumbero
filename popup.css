@@ -205,6 +205,11 @@ header {
    exact advance and change nothing visually. They stay as insurance: if the
    bundled font ever fails to load, the fallback's proportional digits would
    otherwise make a centred countdown lurch on every tick. */
+/* The cells are a fixed fraction of the font size, so a three-digit hour needs
+   267px of the 252px there is and wraps onto a second line. One step down fits
+   everything up to four-digit hours, which is over a year. */
+.clock.long { font-size: 44px; }
+
 .clock .digit {
   display: inline-block;
   width: 0.6em;
