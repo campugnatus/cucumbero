@@ -35,6 +35,10 @@ SHIP = [
     # The SIL Open Font License requires the licence to be distributed with the
     # font, so this one isn't optional.
     "fonts/OFL-Nunito.txt",
+    # MIT asks the same of its own notice, and an upload to the store is a
+    # distribution like any other. Cheap, and it would be odd to honour one
+    # font's licence terms and not our own.
+    "LICENSE",
 ]
 
 
