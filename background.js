@@ -148,6 +148,9 @@ async function startSession(durationMs) {
     session,
     lastMinutes: durationMs === null ? 0 : Math.round(durationMs / 60000),
     notice: '', // whatever went wrong last time has been read and acted on
+    // Seeded here rather than waiting for the first tick, so closing the browser
+    // inside the first minute is a gap like any other.
+    lastSeenAt: now,
   });
   await resetBreaks();
   await armAlarms(session);
@@ -210,6 +213,11 @@ let ending = null;
 
 // reason: 'stopped' (you held the button) | 'finished' (the timer ran out)
 //       | 'aborted' (the session stopped being trustworthy — see abortOnClockChange)
+//       | 'lapsed' (nothing was running it — see endLapsedSession)
+// Only 'finished' and 'aborted' say anything out loud. A lapse leaves its note
+// for the popup and nothing else: it's discovered on the way back to a browser
+// you'd stopped using, where a notification is just noise about a session you
+// had already forgotten.
 function endSession(reason) {
   if (ending) return ending;
   ending = endSessionOnce(reason).finally(() => {
@@ -252,6 +260,19 @@ async function endSessionOnce(reason) {
   return session;
 }
 
+// How long the worker can go unheard from before a count-up session is written
+// off. The tick alarm beats once a minute, so any gap past this means nothing
+// was running the session: browser closed, machine asleep, extension disabled.
+//
+// Three hours puts the line where it belongs — you can go to lunch, take a
+// meeting, run an errand and come back to a session still standing, but you
+// can't sleep through one. Erring long also absorbs Chrome throttling alarms on
+// battery, where ending a session someone is still sitting in would be the
+// worse of the two mistakes.
+const LAPSE_MS = 3 * 60 * 60_000; // 3 hours
+
+const LAPSE_NOTICE = `Session stopped: browser wasn't running.`;
+
 // Shown in the popup's status band after the abort below. Kept until the next
 // session starts, so it's still there when you open the popup wondering why
 // nothing is being blocked.
@@ -277,10 +298,33 @@ async function abortOnClockChange(session) {
   return null;
 }
 
+// A count-up session measures wall-clock time from when it started, which is
+// only meaningful for as long as something was actually running it. Close the
+// browser overnight, sleep the laptop, disable the extension for six months —
+// nothing expires, so it resumes and counts every hour you were away as time
+// you focused.
+//
+// The tick alarm beats once a minute while a session is live, so silence longer
+// than that means nothing was running. lastSeenAt lives in storage.local rather
+// than storage.session on purpose: session storage is wiped by the browser
+// restart this most needs to notice, and it wouldn't see a sleeping machine at
+// all, which is the way most browsers actually stop.
+//
+// Countdowns don't need this. Their deadline passes while you're away and the
+// reconcile below ends them properly.
+async function endLapsedSession(session) {
+  if (!session || session.endsAt !== null) return session;
+  const { lastSeenAt = 0 } = await chrome.storage.local.get('lastSeenAt');
+  if (!lastSeenAt || Date.now() - lastSeenAt < LAPSE_MS) return session;
+  await chrome.storage.local.set({ notice: LAPSE_NOTICE });
+  await endSession('lapsed');
+  return null;
+}
+
 // Lazily reconciles an expired session — covers the case where the alarm was
 // missed (worker asleep during a browser restart, clock jump, etc).
 async function currentSession() {
-  const session = await abortOnClockChange(await readSession());
+  const session = await endLapsedSession(await abortOnClockChange(await readSession()));
   if (session && session.endsAt !== null && session.endsAt <= Date.now()) {
     await endSession('finished');
     return null;
@@ -419,7 +463,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   } else if (alarm.name === ALARM_TICK) {
     const session = await currentSession();
     await paintBadge(session);
-    if (sessionIsLive(session)) await sweepAllTabs();
+    if (sessionIsLive(session)) {
+      // The heartbeat, and it has to be stamped after currentSession() rather
+      // than before: stamping first would refresh the very value that call reads
+      // to decide whether anything has been running.
+      await chrome.storage.local.set({ lastSeenAt: Date.now() });
+      await sweepAllTabs();
+    }
   }
 });
 
