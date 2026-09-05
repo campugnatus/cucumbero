@@ -308,8 +308,14 @@ async function addSite() {
   if (res.error) return say(res.error);
   state.blocklist = res.blocklist;
   say('');
+  // Left in place rather than cleared, so you can see what the entry was
+  // normalized to — "https://www.Reddit.com/" comes back as "reddit.com". But
+  // selected, so the next domain types straight over it and a list can be
+  // filled in one go. Same reason the duration field opens selected.
   el.input.value = res.domain;
   render();
+  el.input.focus();
+  el.input.select();
 }
 
 // Two handlers rather than a <form>: a form would give Enter for free, but an
